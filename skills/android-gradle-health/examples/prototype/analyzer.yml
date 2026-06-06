@@ -1,0 +1,4 @@
+# Perfil: Prototipo / Solo dev (1-5 módulos)
+sanity:
+  fail_on_cycle: true
+  fail_on_score_below: 50

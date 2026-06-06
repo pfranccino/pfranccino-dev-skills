@@ -1,0 +1,4 @@
+# Perfil: App grande (30+ módulos, 5+ devs / múltiples squads)
+sanity:
+  fail_on_cycle: true
+  fail_on_score_below: 78
