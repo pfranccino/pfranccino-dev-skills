@@ -7,7 +7,7 @@
 ## Identificar el ciclo exacto
 
 ```bash
-gradle-sanity <ruta/modulo> --json | jq '.violations.cycles'
+gradle-sanity <ruta/modulo> --json | jq '.cycles'
 ```
 
 Output típico:

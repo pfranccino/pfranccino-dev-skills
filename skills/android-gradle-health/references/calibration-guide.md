@@ -72,9 +72,9 @@ python3 -c "
 import json
 d = json.load(open('baseline.json'))
 print(f'Score: {d[\"score\"]}')
-print(f'Ciclos: {len(d[\"violations\"][\"cycles\"])}')
-print(f'SDP: {len(d[\"violations\"][\"sdp\"])}')
-print(f'API innecesario: {len(d[\"violations\"][\"unnecessary_api\"])}')
+print(f'Ciclos: {len(d[\"cycles\"])}')
+print(f'SDP: {len(d[\"sdp_violations\"])}')
+print(f'API innecesario: {len(d[\"api_issues\"])}')
 "
 ```
 
@@ -95,12 +95,12 @@ Algunos módulos naturalmente tienen valores altos de Ce o Ca. Antes de ajustar 
 global, categorizar los módulos:
 
 ```bash
-# Ver inestabilidad por módulo
+# Ver inestabilidad por módulo (modules es un dict: nombre → {ca, ce, I})
 gradle-sanity . --json | python3 -c "
 import json, sys
 d = json.load(sys.stdin)
-for m in sorted(d['modules'], key=lambda x: x['instability']):
-    print(f'{m[\"instability\"]:.2f}  Ca={m[\"ca\"]:2d}  Ce={m[\"ce\"]:2d}  {m[\"name\"]}')
+for name, m in sorted(d['modules'].items(), key=lambda kv: kv[1]['I']):
+    print(f'{m[\"I\"]:.2f}  Ca={m[\"ca\"]:2d}  Ce={m[\"ce\"]:2d}  {name}')
 "
 ```
 

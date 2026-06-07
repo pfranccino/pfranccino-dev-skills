@@ -15,7 +15,7 @@ I (inestabilidad) = Ce / (Ce + Ca)
 ## Identificar la violación
 
 ```bash
-gradle-sanity <ruta/modulo> --json | jq '.violations.sdp'
+gradle-sanity <ruta/modulo> --json | jq '.sdp_violations'
 ```
 
 Output:
@@ -24,8 +24,8 @@ Output:
   {
     "from": "payments:gateway",
     "to": "payments:ui",
-    "from_instability": 0.2,
-    "to_instability": 0.9
+    "I_from": 0.2,
+    "I_to": 0.9
   }
 ]
 ```
@@ -105,6 +105,6 @@ A veces la violación revela que lógica de negocio terminó en la capa equivoca
 ## Verificar
 
 ```bash
-gradle-sanity <ruta/modulo> --json | jq '.violations.sdp | length'
+gradle-sanity <ruta/modulo> --json | jq '.sdp_violations | length'
 # Debe ser 0
 ```

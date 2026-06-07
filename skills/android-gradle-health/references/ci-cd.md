@@ -16,6 +16,11 @@ gradle-sanity <ruta> --json > sanity-report.json
 gradle-sanity <ruta> --fail-on-cycle --fail-on-score-below 70 --quiet
 ```
 
+> **Motor en CI:** deja el default `static` (solo lee texto, no necesita JDK ni
+> ejecuta el build). Usa `--engine dynamic` únicamente sobre tu propio repo de
+> confianza y cuando necesites resolver Version Catalogs o convention plugins que
+> el parser estático no ve — requiere `gradlew` + JDK en el runner.
+
 ## GitHub Actions — ejemplo completo
 
 ```yaml
@@ -39,7 +44,9 @@ jobs:
           python-version: '3.11'
 
       - name: Install android-gradle-analyzer
-        run: pipx install git+https://github.com/pfranccino/android-gradle-analyzer.git
+        run: pipx install android-gradle-analyzer
+        # Para proyectos Kotlin DSL, mejor precisión con el extra kts:
+        #   pipx install "android-gradle-analyzer[kts]"
 
       - name: Run sanity check (fail on cycles)
         run: |
@@ -71,7 +78,7 @@ jobs:
             const report = JSON.parse(fs.readFileSync('sanity-report.json'));
             const score = report.score;
             const emoji = score >= 90 ? '🟢' : score >= 70 ? '🟡' : score >= 50 ? '🟠' : '🔴';
-            const body = `## Architecture Health Report\n\n${emoji} Score: **${score}/100**\n\nCycles: ${report.violations.cycles.length} | SDP violations: ${report.violations.sdp.length}`;
+            const body = `## Architecture Health Report\n\n${emoji} Score: **${score}/100**\n\nCycles: ${report.cycles.length} | SDP violations: ${report.sdp_violations.length}`;
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,

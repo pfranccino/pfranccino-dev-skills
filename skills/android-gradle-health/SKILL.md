@@ -14,11 +14,28 @@ y convierte su output en diagnósticos accionables con pasos concretos de remedi
 gradle-analyzer-menu --version
 ```
 
-Si no está instalada:
+Si no está instalada (PyPI, recomendado):
+
+```bash
+pipx install android-gradle-analyzer
+```
+
+Para proyectos con Kotlin DSL (`.gradle.kts`), instala el extra `kts`: usa un
+parser AST (tree-sitter) en lugar de regex, más preciso con dependencias
+multilínea, comentarios y `project(path = ":x")`:
+
+```bash
+pipx install "android-gradle-analyzer[kts]"
+```
+
+Instalación desde el repo (vía de desarrollo):
 
 ```bash
 pipx install git+https://github.com/pfranccino/android-gradle-analyzer.git
 ```
+
+> Esta skill asume **android-gradle-analyzer ≥ 1.4.0** (motores `--engine`).
+> Referencia completa de la herramienta: su [Wiki](https://github.com/pfranccino/android-gradle-analyzer/wiki).
 
 ---
 
@@ -37,6 +54,29 @@ pipx install git+https://github.com/pfranccino/android-gradle-analyzer.git
 | Calibrar holguras por tamaño | config en `coupling_limits` | `references/thresholds.md` |
 | Entender el origen de los parámetros | — | `references/calibration-guide.md` |
 | Integrar en CI/CD | `gradle-sanity --fail-on-cycle --fail-on-score-below N` | `references/ci-cd.md` |
+
+---
+
+## Motores de extracción (`--engine`)
+
+Los cuatro comandos aceptan `--engine static|dynamic|auto` (default `static`).
+También se configura por sección en `analyzer.yml` (`engine:`).
+
+| Motor | Cómo extrae deps | Precisión | Requisitos | Seguridad |
+|---|---|---|---|---|
+| `static` *(default)* | Parsea `build.gradle(.kts)` como texto | Alta para `project()` y accessors | Ninguno (solo Python) | Segura — solo lee texto |
+| `dynamic` | Ejecuta `gradlew -I <init>` y lee el modelo que **Gradle resuelve** | Total: catálogos, variables, accessors, convention plugins | JDK + `gradlew` | Ejecuta el build — solo repos de confianza |
+| `auto` | Usa `dynamic` si hay `gradlew` y corre OK; si no, cae a `static` con warning | La mejor disponible | Condicional | Hereda la del motor usado |
+
+⚠️ **`dynamic` ejecuta el build del proyecto analizado** (settings, plugins,
+convention plugins). Es opt-in. Para repos no confiables o CI sobre código
+externo, deja `static`. Úsalo cuando el parser estático no resuelva un Version
+Catalog o un convention plugin y necesites precisión total.
+
+```bash
+# El estático no ve deps detrás de un convention plugin → usa el dinámico
+gradle-sanity <ruta/modulo> --engine dynamic --json
+```
 
 ---
 
