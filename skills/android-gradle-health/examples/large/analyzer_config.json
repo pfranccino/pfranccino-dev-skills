@@ -1,20 +1,20 @@
 {
-  "_comentario": "Perfil: App grande (30+ módulos, múltiples squads)",
+  "_comment": "Profile: Large app (30+ modules, multiple squads)",
   "sanity_weights": {
-    "cycle":                 20,
-    "sdp_violation":         15,
-    "unnecessary_api":        5,
+    "cycle": 20,
+    "sdp_violation": 15,
+    "unnecessary_api": 5,
     "high_fan_out_threshold": 4,
-    "high_fan_out_penalty":   5,
-    "hardcoded_version":      3,
-    "sdp_threshold":          0.2
+    "high_fan_out_penalty": 5,
+    "hardcoded_version": 3,
+    "sdp_threshold": 0.2
   },
   "coupling_limits": {
     "leaf_instability": 0.65,
-    "leaf_max_ca":      1,
-    "leaf_penalty":     8,
-    "app_max_ca":       0,
-    "app_penalty":      15
+    "leaf_max_ca": 1,
+    "leaf_penalty": 8,
+    "app_max_ca": 0,
+    "app_penalty": 15
   },
   "coupling_overrides": {}
 }

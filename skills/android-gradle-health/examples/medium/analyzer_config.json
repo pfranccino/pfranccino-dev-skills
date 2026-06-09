@@ -1,20 +1,20 @@
 {
-  "_comentario": "Perfil: App mediana (15-30 módulos, 2-5 devs)",
+  "_comment": "Profile: Medium app (15-30 modules, 2-5 devs)",
   "sanity_weights": {
-    "cycle":                 20,
-    "sdp_violation":         10,
-    "unnecessary_api":        5,
+    "cycle": 20,
+    "sdp_violation": 10,
+    "unnecessary_api": 5,
     "high_fan_out_threshold": 5,
-    "high_fan_out_penalty":   4,
-    "hardcoded_version":      2,
-    "sdp_threshold":          0.25
+    "high_fan_out_penalty": 4,
+    "hardcoded_version": 2,
+    "sdp_threshold": 0.25
   },
   "coupling_limits": {
     "leaf_instability": 0.70,
-    "leaf_max_ca":      1,
-    "leaf_penalty":     5,
-    "app_max_ca":       0,
-    "app_penalty":      10
+    "leaf_max_ca": 1,
+    "leaf_penalty": 5,
+    "app_max_ca": 0,
+    "app_penalty": 10
   },
   "coupling_overrides": {}
 }

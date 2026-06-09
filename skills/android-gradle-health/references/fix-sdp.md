@@ -1,26 +1,23 @@
-# Cómo resolver violaciones SDP
+# How to resolve SDP violations
 
-## Qué es el SDP (Stable Dependencies Principle)
+## What the SDP is (Stable Dependencies Principle)
 
-Un módulo **solo debe depender de módulos más estables que él mismo**.
+A module **should only depend on modules more stable than itself**.
 
 ```
-I (inestabilidad) = Ce / (Ce + Ca)
-0 = imposible desestabilizar  →  1 = completamente inestable
+I (instability) = Ce / (Ce + Ca)
+0 = impossible to destabilize  →  1 = completely unstable
 ```
 
-**Violación:** `core` (I=0.1) depende de `feature:home` (I=0.9)
-→ Un cambio en `feature:home` puede romper `core`.
+**Violation:** `core` (I=0.1) depends on `feature:home` (I=0.9)
+→ A change in `feature:home` can break `core`.
 
-## Identificar la violación
+## Identifying violations from JSON
 
-```bash
-gradle-sanity <ruta/modulo> --json | jq '.sdp_violations'
-```
+In `gradle-sanity --json` output:
 
-Output:
 ```json
-[
+"sdp_violations": [
   {
     "from": "payments:gateway",
     "to": "payments:ui",
@@ -30,81 +27,75 @@ Output:
 ]
 ```
 
-## Patrón de diagnóstico
+`from` is the more stable module (low I) depending on `to` (high I). The dependency
+points in the wrong direction — toward instability.
 
-Antes de actuar, entender **por qué** existe esa dependencia.
+## Diagnostic pattern
 
-Pregunta: ¿Qué clase/función exacta del módulo inestable está usando el módulo estable?
+Before acting, understand **why** the dependency exists.
+
+Question: What exact class/function from the unstable module is the stable module using?
 
 ```bash
-# Ver qué importa el módulo estable del inestable
 grep -r "import.*payments.ui" payments/gateway/src/
 ```
 
-## Estrategias de remediación
+## Remediation strategies
 
-### Estrategia 1: Mover la abstracción al módulo estable
+### Strategy 1: Move the abstraction to the stable module
 
-El módulo estable define la interfaz; el inestable la implementa.
+The stable module defines the interface; the unstable one implements it.
 
 ```
-ANTES:
-gateway (I=0.2) → ui (I=0.9)   ← violación SDP
+BEFORE:
+gateway (I=0.2) → ui (I=0.9)   ← SDP violation
 
-DESPUÉS:
-gateway (I=0.2) define: interface Renderer
-ui (I=0.9) implementa: class AndroidRenderer : Renderer
-app inyecta la implementación
+AFTER:
+gateway (I=0.2) defines: interface Renderer
+ui (I=0.9) implements: class AndroidRenderer : Renderer
+app injects the implementation
 ```
 
-**Pasos:**
-1. Crear la interfaz en `gateway` (o en `common`).
-2. Hacer que `ui` implemente la interfaz.
-3. Eliminar la dependencia de `gateway` a `ui`.
-4. Inyectar desde `app` con Hilt.
+**Steps:**
+1. Create the interface in `gateway` (or in `common`).
+2. Have `ui` implement the interface.
+3. Remove the dependency from `gateway` to `ui`.
+4. Inject from `app` with Hilt.
 
 ---
 
-### Estrategia 2: Elevar el contrato a un módulo de API
+### Strategy 2: Elevate the contract to an API module
 
-Patrón multi-módulo de Google: separar `:feature:api` de `:feature:impl`.
+Google's multi-module pattern: separate `:feature:api` from `:feature:impl`.
 
 ```
-ANTES:
-core → feature:home  (feature:home tiene todo mezclado)
+BEFORE:
+core → feature:home  (everything mixed in feature:home)
 
-DESPUÉS:
-core → feature:home:api   (solo interfaces y modelos)
-feature:home:impl → feature:home:api  (implementación)
+AFTER:
+core → feature:home:api   (interfaces and domain models only)
+feature:home:impl → feature:home:api  (implementation)
 app → feature:home:impl
 ```
 
-Estructura de módulos:
+Module structure:
 ```
 feature/
   home/
-    api/        ← interfaces + modelos de dominio (estable, I bajo)
-    impl/       ← implementación real (inestable, I alto)
-```
-
-En `settings.gradle.kts`:
-```kotlin
-include(":feature:home:api")
-include(":feature:home:impl")
+    api/        ← interfaces + domain models (stable, low I)
+    impl/       ← real implementation (unstable, high I)
 ```
 
 ---
 
-### Estrategia 3: Revertir la dirección (cuando el código está en el lugar equivocado)
+### Strategy 3: Reverse the direction (code in the wrong layer)
 
-A veces la violación revela que lógica de negocio terminó en la capa equivocada.
+Sometimes the violation reveals business logic that ended up in the wrong layer.
 
-**Señal:** `domain` usa algo de `data` que no es una interfaz.
-**Fix:** Mover esa lógica a `domain` o crear una interfaz `Repository` en `domain` que `data` implementa.
+**Signal:** `domain` uses something from `data` that isn't an interface.
+**Fix:** Move that logic to `domain` or create a `Repository` interface in `domain`
+that `data` implements.
 
-## Verificar
+## Verification
 
-```bash
-gradle-sanity <ruta/modulo> --json | jq '.sdp_violations | length'
-# Debe ser 0
-```
+Run sanity again and check that `sdp_violations` is empty in the JSON output.

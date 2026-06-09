@@ -1,47 +1,49 @@
-# Cómo romper ciclos entre módulos
+# How to break dependency cycles
 
-## Qué es un ciclo
+## What a cycle is
 
-`A depende de B` y `B depende de A`. Gradle permite compilar igual, pero viola el ADP (Acyclic Dependencies Principle) y hace el refactoring imposible sin romper todo.
+`A depends on B` and `B depends on A`. Gradle compiles fine, but it violates the
+ADP (Acyclic Dependencies Principle) and makes refactoring impossible without
+breaking everything downstream.
 
-## Identificar el ciclo exacto
+## Identifying the cycle from JSON
 
-```bash
-gradle-sanity <ruta/modulo> --json | jq '.cycles'
+In the `gradle-sanity --json` output, `cycles` is a list of lists. Each sublist
+is a complete cycle with the starting node repeated at the end:
+
+```json
+"cycles": [
+  ["payments:home", "payments:checkout", "payments:home"]
+]
 ```
 
-Output típico:
-```
-["payments:home", "payments:checkout", "payments:home"]
-```
+This means: `home → checkout → home`.
 
-Esto significa: `home → checkout → home`.
+## Remediation strategies
 
-## Estrategias de remediación
+### Strategy 1: Interface extraction (most common)
 
-### Estrategia 1: Extracción de interfaz (la más común)
+**Situation:** `home` uses something from `checkout` and `checkout` uses something from `home`.
 
-**Situación:** `home` usa algo de `checkout` y `checkout` usa algo de `home`.
-
-**Solución:** Extraer el contrato al módulo más estable que ambos ya consumen.
+**Solution:** Extract the contract to the most stable module both already consume.
 
 ```
-ANTES:
-home ←→ checkout  (ciclo)
+BEFORE:
+home ←→ checkout  (cycle)
 
-DESPUÉS:
+AFTER:
 home → common ← checkout
          ↑
-    (interfaz aquí)
+    (interface here)
 ```
 
-**Pasos:**
-1. Identificar exactamente qué clase de `checkout` usa `home` y viceversa.
-2. Crear una interfaz en `common` (o `core`) para cada dependencia cruzada.
-3. Reemplazar la dependencia directa por la interfaz.
-4. Inyectar la implementación con Hilt desde el módulo `app`.
+**Steps:**
+1. Identify exactly what class from `checkout` is used by `home` and vice versa.
+2. Create an interface in `common` (or `core`) for each cross-dependency.
+3. Replace the direct dependency with the interface.
+4. Inject the implementation with Hilt from the `app` module.
 
-**Ejemplo:**
+**Example:**
 
 ```kotlin
 // common/src/main/kotlin/NavigationController.kt
@@ -49,12 +51,12 @@ interface NavigationController {
     fun navigateToCheckout(cartId: String)
 }
 
-// home/HomeViewModel.kt — ya no importa nada de checkout
+// home/HomeViewModel.kt — no longer imports anything from checkout
 class HomeViewModel(
-    private val nav: NavigationController  // inyectado por Hilt
+    private val nav: NavigationController  // injected by Hilt
 ) { ... }
 
-// app/ — registra la implementación real
+// app/ — registers the real implementation
 @Module
 @InstallIn(SingletonComponent::class)
 object NavigationModule {
@@ -65,17 +67,17 @@ object NavigationModule {
 
 ---
 
-### Estrategia 2: Módulo mediador (event bus / shared state)
+### Strategy 2: Mediator module (event bus / shared state)
 
-**Situación:** Los módulos se comunican con eventos o estado compartido.
+**Situation:** Modules communicate via events or shared state.
 
-**Solución:** Crear un módulo `:shared:events` que ambos consuman.
+**Solution:** Create a `:shared:events` module both consume.
 
 ```
-ANTES:
-feature:home ←→ feature:notifications  (ciclo por eventos)
+BEFORE:
+feature:home ←→ feature:notifications  (cycle via events)
 
-DESPUÉS:
+AFTER:
 feature:home → shared:events ← feature:notifications
 ```
 
@@ -89,27 +91,35 @@ sealed class UserEvent {
 
 ---
 
-### Estrategia 3: Invertir la dependencia (menos común)
+### Strategy 3: Invert the dependency (less common)
 
-**Situación:** Un módulo de alto nivel depende accidentalmente de uno de bajo nivel que a su vez lo necesita.
+**Situation:** A high-level module accidentally depends on a low-level one that in turn needs it.
 
-**Solución:** Determinar cuál es la dirección "correcta" y mover el código en consecuencia.
+**Solution:** Determine the "correct" direction and move the code accordingly.
 
-Pregunta clave: **¿Quién debería saber de quién?**
-- `feature` sabe de `domain` ✅
-- `domain` sabe de `feature` ❌ → mover la lógica a `feature` o a una interfaz en `domain`
+Key question: **Who should know about whom?**
+- `feature` knows about `domain` ✅
+- `domain` knows about `feature` ❌ → move logic to `feature` or define an interface in `domain`
 
 ---
 
-## Validar que el ciclo está roto
+## Verification
+
+Run sanity again and check that `cycles` is empty:
 
 ```bash
-gradle-sanity <ruta/modulo> --fail-on-cycle --quiet
-echo "Exit code: $?"  # 0 = sin ciclos ✅
+gradle-sanity <path> --json --quiet
 ```
 
-## Checklist antes de hacer PR
+Or use the exit code for scripted verification:
 
-- [ ] `gradle-sanity --fail-on-cycle` sale con código 0
-- [ ] `gradle-impact` sobre los módulos modificados no muestra regresiones inesperadas
-- [ ] Tests unitarios de cada módulo involucrado pasan
+```bash
+gradle-sanity <path> --fail-on-cycle --quiet
+# exit code 0 = no cycles ✅
+```
+
+## PR checklist
+
+- [ ] `gradle-sanity --fail-on-cycle` exits with code 0
+- [ ] `gradle-impact` on modified modules shows no unexpected regressions
+- [ ] Unit tests for each involved module pass

@@ -1,164 +1,265 @@
 ---
 name: android-gradle-health
-description: Analiza y mejora la salud arquitectónica de proyectos Android multi-módulo usando android-gradle-analyzer. Úsala siempre que el usuario mencione dependencias Gradle, ciclos entre módulos, violaciones SDP, métricas Ca/Ce/I, health score, impacto de cambios, qué módulos se rompen si cambio X, lógica compartida mal ubicada, o quiera saber si su arquitectura está bien. También activa para preguntas sobre coupling_limits, coupling_overrides, modularización, scopes de Gradle (api vs implementation), o calibración de holguras.
+description: >
+  Analyzes and improves architectural health of Android multi-module projects using
+  android-gradle-analyzer. Use whenever the user mentions Gradle dependencies, module
+  cycles, SDP violations, Ca/Ce/I metrics, health scores, change impact, what breaks
+  if module X changes, misplaced shared logic, or wants to know if their architecture
+  is healthy. Also triggers for questions about coupling_limits, coupling_overrides,
+  modularization, Gradle scopes (api vs implementation), or threshold calibration.
+  Triggers even if the user doesn't name the tool — if they have
+  an Android multi-module project and ask about dependencies or architecture, this
+  skill applies.
 ---
 
 # Android Gradle Health
 
-Skill que envuelve [android-gradle-analyzer](https://github.com/pfranccino/android-gradle-analyzer)
-y convierte su output en diagnósticos accionables con pasos concretos de remediación.
+Skill for diagnosing architectural health of Android multi-module projects by running
+[android-gradle-analyzer](https://github.com/pfranccino/android-gradle-analyzer) CLIs,
+capturing their JSON output, and delivering actionable analysis.
 
-## Prerequisito: verificar instalación
-
-```bash
-gradle-analyzer-menu --version
-```
-
-Si no está instalada (PyPI, recomendado):
+## Prerequisite: verify installation
 
 ```bash
-pipx install android-gradle-analyzer
+pip show android-gradle-analyzer 2>/dev/null | head -2
 ```
 
-Para proyectos con Kotlin DSL (`.gradle.kts`), instala el extra `kts`: usa un
-parser AST (tree-sitter) en lugar de regex, más preciso con dependencias
-multilínea, comentarios y `project(path = ":x")`:
+If not installed:
 
 ```bash
-pipx install "android-gradle-analyzer[kts]"
+pip install android-gradle-analyzer --break-system-packages
 ```
 
-Instalación desde el repo (vía de desarrollo):
+For Kotlin DSL projects (`.gradle.kts`), the `kts` extra provides better accuracy
+via AST parsing instead of regex:
 
 ```bash
-pipx install git+https://github.com/pfranccino/android-gradle-analyzer.git
+pip install "android-gradle-analyzer[kts]" --break-system-packages
 ```
 
-> Esta skill asume **android-gradle-analyzer ≥ 1.4.0** (motores `--engine`).
-> Referencia completa de la herramienta: su [Wiki](https://github.com/pfranccino/android-gradle-analyzer/wiki).
+> Requires **android-gradle-analyzer ≥ 1.4.0** (`--engine` support).
 
 ---
 
-## Mapa de comandos
+## The four commands — always use `--json --quiet`
 
-| Lo que el usuario quiere | Comando | Referencia |
+Every command supports `--json` (structured output to stdout) and `--quiet`
+(suppresses progress). Always use both to get clean, parseable data.
+
+| Command | What it returns | When to use |
 |---|---|---|
-| Ver dependencias de un módulo | `gradle-analyzer <ruta/modulo>` | — |
-| Saber quién consume un módulo | `gradle-externals <ruta/proyecto> <modulo>` | — |
-| Salud general del proyecto | `gradle-sanity <ruta/modulo> --json` | `references/interpret-sanity.md` |
-| Qué se rompe si cambio X | `gradle-impact <ruta/proyecto> <modulo>` | — |
-| Ciclos detectados | `gradle-sanity` → ver `cycles` | `references/fix-cycles.md` |
-| Violaciones SDP | `gradle-sanity` → ver `sdp_violations` | `references/fix-sdp.md` |
-| Scopes mal declarados | `gradle-sanity` → ver `api_issues` | `references/fix-scopes.md` |
-| Lógica compartida mal ubicada | `gradle-sanity` → ver `coupling_issues` | `references/dependency-limits.md` |
-| Calibrar holguras por tamaño | config en `coupling_limits` | `references/thresholds.md` |
-| Entender el origen de los parámetros | — | `references/calibration-guide.md` |
-| Integrar en CI/CD | `gradle-sanity --fail-on-cycle --fail-on-score-below N` | `references/ci-cd.md` |
+| `gradle-sanity <path> --json --quiet` | Score, Ca/Ce/I per module, cycles, SDP violations, issues | Health diagnosis |
+| `gradle-impact <project> <module> --json --quiet` | Direct and transitive dependents, impact percentage | Risk assessment before changes |
+| `gradle-externals <project> <module> --json --quiet` | External callers with scopes and transitive cone | Safe refactoring analysis |
+| `gradle-analyzer <path> --json --quiet` | Dependency graph with scopes per module | Dependency mapping |
 
----
+Common flags:
 
-## Motores de extracción (`--engine`)
-
-Los cuatro comandos aceptan `--engine static|dynamic|auto` (default `static`).
-También se configura por sección en `analyzer.yml` (`engine:`).
-
-| Motor | Cómo extrae deps | Precisión | Requisitos | Seguridad |
-|---|---|---|---|---|
-| `static` *(default)* | Parsea `build.gradle(.kts)` como texto | Alta para `project()` y accessors | Ninguno (solo Python) | Segura — solo lee texto |
-| `dynamic` | Ejecuta `gradlew -I <init>` y lee el modelo que **Gradle resuelve** | Total: catálogos, variables, accessors, convention plugins | JDK + `gradlew` | Ejecuta el build — solo repos de confianza |
-| `auto` | Usa `dynamic` si hay `gradlew` y corre OK; si no, cae a `static` con warning | La mejor disponible | Condicional | Hereda la del motor usado |
-
-⚠️ **`dynamic` ejecuta el build del proyecto analizado** (settings, plugins,
-convention plugins). Es opt-in. Para repos no confiables o CI sobre código
-externo, deja `static`. Úsalo cuando el parser estático no resuelva un Version
-Catalog o un convention plugin y necesites precisión total.
-
-```bash
-# El estático no ve deps detrás de un convention plugin → usa el dinámico
-gradle-sanity <ruta/modulo> --engine dynamic --json
-```
-
----
-
-## Flujo de trabajo estándar
-
-### 1. Diagnóstico inicial
-
-```bash
-gradle-sanity <ruta/modulo> --json > sanity.json
-```
-
-Leer `sanity.json` y priorizar por impacto en score:
-
-1. 🔴 **`cycles`** (−20 pts cada uno) → leer `references/fix-cycles.md`
-2. 🟠 **`sdp_violations`** (−10 pts) → leer `references/fix-sdp.md`
-3. 🟡 **`api_issues`** (−5 pts) → leer `references/fix-scopes.md`
-4. 🟡 **`fan_out_issues`** (−3 pts) → revisar Ce del módulo
-5. 🔵 **`version_issues`** (−2 pts) → migrar a Version Catalog
-6. ⚪ **`coupling_issues`** (advisory por defecto) → leer `references/dependency-limits.md`
-
-### 2. Análisis de impacto antes de refactorizar
-
-```bash
-gradle-impact <ruta/proyecto> <modulo-a-cambiar>
-```
-
-### 3. Visualizar el grafo
-
-```bash
-gradle-analyzer <ruta/modulo> --format mermaid
-```
-
----
-
-## Interpretación rápida del score
-
-| Score | Estado | Acción |
-|---|---|---|
-| 90–100 | 🟢 Excelente | Agregar a CI como quality gate |
-| 70–89 | 🟡 Bueno | Resolver api_issues y version_issues |
-| 50–69 | 🟠 Mejorable | Atender sdp_violations esta sprint |
-| < 50 | 🔴 Crítico | Ciclos activos: resolver antes de agregar features |
-
-**`coupling_issues` no afecta el score por defecto.** Aparece como señal
-arquitectónica en el reporte. Para activarlo como gate en CI, configurar
-`leaf_penalty` y `app_penalty` en `coupling_limits`. Ver `references/dependency-limits.md`.
-
----
-
-## Métricas Ca / Ce / I
-
-| Métrica | Qué mide | Valor ideal |
-|---|---|---|
-| **Ca** (fan-in) | Cuántos módulos dependen de éste | Alto en core/common |
-| **Ce** (fan-out) | De cuántos depende éste | Bajo en módulos estables |
-| **I** (inestabilidad) | `Ce / (Ce + Ca)` | 0 = estable · 1 = hoja |
-
----
-
-## Referencias
-
-| Archivo | Cuándo leerlo |
+| Flag | Effect |
 |---|---|
-| `references/interpret-sanity.md` | Entender la estructura del JSON de sanidad |
-| `references/fix-cycles.md` | El reporte tiene entradas en `cycles` |
-| `references/fix-sdp.md` | El reporte tiene entradas en `sdp_violations` |
-| `references/fix-scopes.md` | El reporte tiene entradas en `api_issues` |
-| `references/dependency-limits.md` | El reporte tiene `coupling_issues`, o el usuario quiere configurar `coupling_limits` |
-| `references/thresholds.md` | El usuario quiere calibrar holguras según tamaño de proyecto |
-| `references/calibration-guide.md` | El usuario quiere entender el origen de los parámetros o respaldar decisiones frente al equipo |
-| `references/ci-cd.md` | Integrar el análisis en GitHub Actions |
+| `--engine static\|dynamic\|auto` | Extraction engine (default: `static` — text-only, safe) |
+| `--config <path>` | Custom `analyzer_config.json` |
+| `--focus <module[,module]>` | Focus analysis on specific modules |
+| `--depth <N>` | Limit traversal depth |
 
-## Ejemplos listos para copiar
+### Extraction engines
 
-Configs en `examples/` por magnitud de proyecto:
+| Engine | How it works | When to use |
+|---|---|---|
+| `static` *(default)* | Parses `build.gradle(.kts)` as text | Always safe, no JDK needed |
+| `dynamic` | Runs `gradlew` and reads Gradle's resolved model | When static misses Version Catalogs or convention plugins |
+| `auto` | Tries dynamic, falls back to static | Best-effort accuracy |
 
-| Carpeta | Perfil |
+⚠️ `dynamic` executes the project's build. Only use on trusted repos.
+
+---
+
+## Operating workflow
+
+### Step 1: Run the command and capture JSON
+
+Always pipe to a variable or file. For sanity (the most common entry point):
+
+```bash
+gradle-sanity <path> --json --quiet
+```
+
+### Step 2: Analyze the JSON
+
+Parse the output and prioritize findings by score impact.
+
+For `gradle-sanity` output, triage in this order:
+
+| Priority | Field | Score impact | Reference to read |
+|---|---|---|---|
+| 🔴 Critical | `cycles` | −20 pts each | `references/fix-cycles.md` |
+| 🟠 High | `sdp_violations` | −10 pts each | `references/fix-sdp.md` |
+| 🟡 Medium | `api_issues` | −5 pts each | `references/fix-scopes.md` |
+| 🟡 Medium | `fan_out_issues` | −3 pts each | Review module's Ce |
+| 🔵 Low | `version_issues` | −2 pts each | Recommend Version Catalog migration |
+| ⚪ Advisory | `coupling_issues` | 0 pts (default) | `references/dependency-limits.md` |
+
+### Step 3: Present diagnosis
+
+Structure the response as:
+
+1. **Score and status** — one line with the score and severity emoji
+2. **Top findings** — prioritized list of issues with specific module names and metrics
+3. **Remediation steps** — concrete actions per issue (read the corresponding reference)
+4. **Next steps** — what to run next or what config to adjust
+
+---
+
+## JSON schemas
+
+### `gradle-sanity --json` output
+
+```json
+{
+  "schema_version": 1,
+  "tool": "sanity",
+  "path": "/path/to/project",
+  "root": "/path/to/project",
+  "focus": ["module1", "module2"],
+  "context_modules": 10,
+  "score": 74,
+  "modules": {
+    "payments:common":   { "ca": 3, "ce": 0, "I": 0.0 },
+    "payments:home":     { "ca": 1, "ce": 6, "I": 0.86 },
+    "payments:gateway":  { "ca": 2, "ce": 1, "I": 0.33 },
+    "payments:checkout": { "ca": 2, "ce": 5, "I": 0.71 }
+  },
+  "cycles": [
+    ["payments:home", "payments:checkout", "payments:home"]
+  ],
+  "sdp_violations": [
+    { "from": "payments:gateway", "to": "payments:home", "I_from": 0.33, "I_to": 0.86 }
+  ],
+  "api_issues": [
+    { "module": "payments:ui", "api_deps": ["core:network"] }
+  ],
+  "fan_out_issues": [
+    { "module": "payments:home", "ce": 6 }
+  ],
+  "version_issues": [
+    { "module": "payments:gateway", "versions": ["com.google.dagger:hilt:2.48"] }
+  ],
+  "orphan_modules": ["payments:experimental"],
+  "coupling_issues": [
+    { "module": "payments:checkout", "kind": "feature", "I": 0.71, "ca": 2, "max_ca": 1 }
+  ]
+}
+```
+
+Field reference for `modules` entries:
+
+| Field | Meaning |
 |---|---|
-| `examples/prototype/` | Solo dev, 1–5 módulos — advisory, sin gates de Ca |
-| `examples/small/` | 1–3 devs, 5–15 módulos — gate suave en app |
-| `examples/medium/` | 2–5 devs, 15–30 módulos — gates activos en feature y app |
-| `examples/large/` | 5+ devs, 30+ módulos — gates estrictos |
+| `ca` | Afferent coupling (fan-in): how many modules depend on this one |
+| `ce` | Efferent coupling (fan-out): how many modules this one depends on |
+| `I` | Instability: `Ce / (Ce + Ca)`, range 0.0–1.0 |
 
-Cada carpeta incluye `analyzer_config.json` + `analyzer.yml` listos para copiar
-a la raíz del proyecto Android.
+Score formula: `100 − sum of all active penalties`.
+`coupling_issues` penalties are 0 by default (advisory mode).
+
+### `gradle-impact --json` output
+
+```json
+{
+  "schema_version": 1,
+  "tool": "impact",
+  "target": "core",
+  "total_modules": 10,
+  "levels": {
+    "1": ["app", "database", "model", "network", "payments", "util"],
+    "2": ["cart", "checkout", "legacy"]
+  },
+  "total_impacted": 9,
+  "impact_percent": 90.0
+}
+```
+
+### `gradle-externals --json` output
+
+```json
+{
+  "schema_version": 1,
+  "tool": "externals",
+  "target": "payments",
+  "internal_modules": ["payments", "payments:common"],
+  "callers": {
+    "cart": { "payments": ["implementation"] },
+    "checkout": { "payments": ["implementation"] }
+  },
+  "caller_cone": {
+    "cart": 1,
+    "checkout": 1,
+    "app": 2,
+    "legacy": 3
+  }
+}
+```
+
+### `gradle-analyzer --json` output
+
+```json
+{
+  "schema_version": 1,
+  "tool": "analyzer",
+  "path": "/path/to/project",
+  "modules": ["app", "core", "payments"],
+  "dependencies": {
+    "app": { "implementation": ["core", "payments"] },
+    "payments": { "implementation": ["core"], "api": ["network"] }
+  },
+  "cycles": []
+}
+```
+
+---
+
+## Score interpretation
+
+| Score | Status | Action |
+|---|---|---|
+| 90–100 | 🟢 Excellent | Healthy — maintain and monitor |
+| 70–89 | 🟡 Good | Resolve api_issues and version_issues |
+| 50–69 | 🟠 Needs attention | Address sdp_violations this sprint |
+| < 50 | 🔴 Critical | Active cycles — resolve before adding features |
+
+---
+
+## Metrics quick reference
+
+| Metric | Measures | Healthy pattern |
+|---|---|---|
+| **Ca** (fan-in) | How many depend on this module | High for core/common/shared |
+| **Ce** (fan-out) | How many this module depends on | Low for stable modules |
+| **I** (instability) | `Ce / (Ce + Ca)` | 0 = stable pillar · 1 = leaf/feature |
+
+---
+
+## References — when to read each
+
+| File | Read when |
+|---|---|
+| `references/fix-cycles.md` | `cycles` is non-empty |
+| `references/fix-sdp.md` | `sdp_violations` is non-empty |
+| `references/fix-scopes.md` | `api_issues` is non-empty |
+| `references/dependency-limits.md` | `coupling_issues` is non-empty, or user asks about `coupling_limits` |
+| `references/thresholds.md` | User wants to calibrate thresholds by project size |
+| `references/calibration-guide.md` | User wants academic backing or methodology for parameter choices |
+
+## Ready-to-copy configs
+
+In `examples/` by project size:
+
+| Folder | Profile |
+|---|---|
+| `examples/prototype/` | Solo dev, 1–5 modules — advisory only, no Ca gates |
+| `examples/small/` | 1–3 devs, 5–15 modules — soft app gate |
+| `examples/medium/` | 2–5 devs, 15–30 modules — active feature and app gates |
+| `examples/large/` | 5+ devs, 30+ modules — strict gates |
+
+Each folder includes `analyzer_config.json` + `analyzer.yml` ready to copy
+to the Android project root.

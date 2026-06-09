@@ -1,20 +1,20 @@
 {
-  "_comentario": "Perfil: Prototipo / Solo dev (1-5 módulos)",
+  "_comment": "Profile: Prototype / Solo dev (1-5 modules)",
   "sanity_weights": {
-    "cycle":                 20,
-    "sdp_violation":          7,
-    "unnecessary_api":        3,
+    "cycle": 20,
+    "sdp_violation": 7,
+    "unnecessary_api": 3,
     "high_fan_out_threshold": 8,
-    "high_fan_out_penalty":   2,
-    "hardcoded_version":      1,
-    "sdp_threshold":          0.5
+    "high_fan_out_penalty": 2,
+    "hardcoded_version": 1,
+    "sdp_threshold": 0.5
   },
   "coupling_limits": {
     "leaf_instability": 0.80,
-    "leaf_max_ca":      2,
-    "leaf_penalty":     0,
-    "app_max_ca":       0,
-    "app_penalty":      0
+    "leaf_max_ca": 2,
+    "leaf_penalty": 0,
+    "app_max_ca": 0,
+    "app_penalty": 0
   },
   "coupling_overrides": {}
 }

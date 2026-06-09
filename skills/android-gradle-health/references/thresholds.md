@@ -1,182 +1,149 @@
-# Holguras recomendadas por magnitud de proyecto
+# Recommended thresholds by project size
 
-Los parámetros de `sanity_weights` no son estándares externos — son puntos de partida ajustables.
-Este archivo da recomendaciones concretas según el tamaño y contexto de tu proyecto.
+The `sanity_weights` parameters are not external standards — they're adjustable
+starting points. This file gives concrete recommendations by size and context.
 
 ---
 
-## Los parámetros explicados
+## Parameters explained
 
-| Parámetro | Qué controla | Default |
+| Parameter | Controls | Default |
 |---|---|---|
-| `cycle` | Penalización por ciclo detectado | 20 |
-| `sdp_violation` | Penalización por violación SDP | 10 |
-| `unnecessary_api` | Penalización por scope `api` innecesario | 5 |
-| `high_fan_out_threshold` | Cuántos `Ce` antes de considerar fan-out excesivo | 5 |
-| `high_fan_out_penalty` | Penalización por módulo con fan-out excesivo | 3 |
-| `hardcoded_version` | Penalización por versión hardcodeada | 2 |
-| `sdp_threshold` | Diferencia de inestabilidad que dispara una violación SDP | 0.3 |
-| `fail_on_score_below` *(analyzer.yml)* | Gate de CI — cuándo fallar el pipeline | — |
+| `cycle` | Penalty per detected cycle | 20 |
+| `sdp_violation` | Penalty per SDP violation | 10 |
+| `unnecessary_api` | Penalty per unnecessary `api` scope | 5 |
+| `high_fan_out_threshold` | Ce count before fan-out is excessive | 5 |
+| `high_fan_out_penalty` | Penalty per module with excessive fan-out | 3 |
+| `hardcoded_version` | Penalty per hardcoded version | 2 |
+| `sdp_threshold` | Instability difference that triggers an SDP violation | 0.3 |
+| `fail_on_score_below` *(analyzer.yml)* | CI gate — when to fail the pipeline | — |
 
-> **Regla que nunca cambia:** `cycle` siempre debe ser alto (≥15). Un ciclo es un ciclo
-> sin importar el tamaño del proyecto. Es lo único que no se negocia.
+> **Rule that never changes:** `cycle` must always be high (≥15). A cycle is a cycle
+> regardless of project size. This is the one non-negotiable.
 
 ---
 
-## Recomendaciones por magnitud
+## Recommendations by size
 
-### 🌱 Prototipo / Solo dev (1–5 módulos)
+### 🌱 Prototype / Solo dev (1–5 modules)
 
-Arquitectura aún en definición. El foco es construir, no pulir.
+Architecture still taking shape. Focus is building, not polishing.
 
 ```json
 "sanity_weights": {
-  "cycle":                 20,
-  "sdp_violation":          7,
-  "unnecessary_api":        3,
-  "high_fan_out_threshold": 8,
-  "high_fan_out_penalty":   2,
-  "hardcoded_version":      1,
-  "sdp_threshold":          0.5
+  "cycle": 20, "sdp_violation": 7, "unnecessary_api": 3,
+  "high_fan_out_threshold": 8, "high_fan_out_penalty": 2,
+  "hardcoded_version": 1, "sdp_threshold": 0.5
 }
 ```
 ```yaml
-# analyzer.yml
 sanity:
   fail_on_cycle: true
   fail_on_score_below: 50
 ```
 
-**Razonamiento:**
-- `sdp_threshold: 0.5` — permite que módulos con inestabilidades similares dependan entre sí sin penalizar.
-- `high_fan_out_threshold: 8` — en un proyecto pequeño, un módulo `common` con 7 dependencias es normal.
-- `fail_on_score_below: 50` — solo bloquea si está realmente mal, no en arq. en construcción.
+**Rationale:** `sdp_threshold: 0.5` lets modules with similar instabilities depend on
+each other. `high_fan_out_threshold: 8` because a `common` with 7 deps is normal at
+this scale. Score gate at 50 only blocks truly broken architectures.
 
 ---
 
-### 📱 App pequeña (5–15 módulos, 1–3 devs)
+### 📱 Small app (5–15 modules, 1–3 devs)
 
-La arquitectura ya está tomando forma. Vale la pena que el CI empiece a cuidarla.
+Architecture taking form. CI should start watching.
 
 ```json
 "sanity_weights": {
-  "cycle":                 20,
-  "sdp_violation":         10,
-  "unnecessary_api":        5,
-  "high_fan_out_threshold": 6,
-  "high_fan_out_penalty":   3,
-  "hardcoded_version":      2,
-  "sdp_threshold":          0.3
+  "cycle": 20, "sdp_violation": 10, "unnecessary_api": 5,
+  "high_fan_out_threshold": 6, "high_fan_out_penalty": 3,
+  "hardcoded_version": 2, "sdp_threshold": 0.3
 }
 ```
 ```yaml
-# analyzer.yml
 sanity:
   fail_on_cycle: true
   fail_on_score_below: 65
 ```
 
-**Razonamiento:** Valores default de la herramienta. Son el punto de equilibrio para la mayoría de proyectos en crecimiento.
+**Rationale:** Tool defaults. Balanced for most growing projects.
 
 ---
 
-### 🏗️ App mediana (15–30 módulos, 2–5 devs)
+### 🏗️ Medium app (15–30 modules, 2–5 devs)
 
-Múltiples features, posiblemente más de un dev tocando el mismo módulo.
-El fan-out empieza a importar — un módulo con 8 dependencias ya es sospechoso.
+Multiple features, possibly multiple devs touching the same module.
+Fan-out starts mattering — a module with 8 deps is suspicious.
 
 ```json
 "sanity_weights": {
-  "cycle":                 20,
-  "sdp_violation":         10,
-  "unnecessary_api":        5,
-  "high_fan_out_threshold": 5,
-  "high_fan_out_penalty":   4,
-  "hardcoded_version":      2,
-  "sdp_threshold":          0.25
+  "cycle": 20, "sdp_violation": 10, "unnecessary_api": 5,
+  "high_fan_out_threshold": 5, "high_fan_out_penalty": 4,
+  "hardcoded_version": 2, "sdp_threshold": 0.25
 }
 ```
 ```yaml
-# analyzer.yml
 sanity:
   fail_on_cycle: true
   fail_on_score_below: 72
 ```
 
-**Razonamiento:**
-- `sdp_threshold: 0.25` — más estricto. Con más módulos, las capas deben estar más claras.
-- `high_fan_out_penalty: 4` — subir la penalización incentiva a dividir módulos gordos.
-- `fail_on_score_below: 72` — da espacio para deuda técnica controlada pero bloquea degradación.
+**Rationale:** `sdp_threshold: 0.25` is stricter — with more modules, layers should be
+clearer. Higher fan-out penalty incentivizes splitting fat modules.
 
 ---
 
-### 🏢 App grande (30+ módulos, 5+ devs / múltiples squads)
+### 🏢 Large app (30+ modules, 5+ devs / multiple squads)
 
-La arquitectura es infraestructura. Una violación SDP en un módulo compartido
-puede costar días de trabajo a tres equipos.
+Architecture is infrastructure. An SDP violation in a shared module can cost
+three teams days of work.
 
 ```json
 "sanity_weights": {
-  "cycle":                 20,
-  "sdp_violation":         15,
-  "unnecessary_api":        5,
-  "high_fan_out_threshold": 4,
-  "high_fan_out_penalty":   5,
-  "hardcoded_version":      3,
-  "sdp_threshold":          0.2
+  "cycle": 20, "sdp_violation": 15, "unnecessary_api": 5,
+  "high_fan_out_threshold": 4, "high_fan_out_penalty": 5,
+  "hardcoded_version": 3, "sdp_threshold": 0.2
 }
 ```
 ```yaml
-# analyzer.yml
 sanity:
   fail_on_cycle: true
   fail_on_score_below: 78
 ```
 
-**Razonamiento:**
-- `sdp_violation: 15` — más caro porque el impacto real es mayor con más equipos.
-- `high_fan_out_threshold: 4` — un módulo con 5+ dependencias es señal de que necesita dividirse.
-- `sdp_threshold: 0.2` — muy estricto: los límites entre capas deben ser nítidos.
-- `fail_on_score_below: 78` — umbral alto porque la arquitectura ya debe estar madura.
+**Rationale:** `sdp_violation: 15` because real impact is higher with more teams.
+`sdp_threshold: 0.2` — layer boundaries must be sharp. High score gate because
+architecture should already be mature.
 
 ---
 
-## Cómo elegir tu umbral de partida
+## How to choose your starting threshold
 
-Si no sabes cuál categoría aplica, ejecuta primero sin umbrales:
+If unsure which category applies, run sanity first and read the JSON:
 
 ```bash
-gradle-sanity . --json > baseline.json
-python3 -c "import json; d=json.load(open('baseline.json')); print(f'Score actual: {d[\"score\"]}')"
+gradle-sanity . --json --quiet
 ```
 
-Luego elige un `fail_on_score_below` que sea **10 puntos por debajo del score actual**.
-Esto evita que el CI falle de entrada y te da margen para mejorar gradualmente.
+Check the `score` and `modules` count, then set `fail_on_score_below` to
+**10 points below current score**. This avoids breaking CI on day one and gives
+room for gradual improvement.
 
 ```
-Score actual: 71  →  fail_on_score_below: 61  (arrancar)
-                  →  fail_on_score_below: 65  (después de 1 sprint)
-                  →  fail_on_score_below: 70  (objetivo)
+Current score: 71  →  fail_on_score_below: 61  (start)
+                   →  fail_on_score_below: 65  (after 1 sprint)
+                   →  fail_on_score_below: 70  (target)
 ```
 
 ---
 
-## Señales de que tus holguras están mal calibradas
+## Signs your thresholds are miscalibrated
 
-| Síntoma | Problema probable | Ajuste |
+| Symptom | Likely problem | Adjustment |
 |---|---|---|
-| El CI falla en cada PR por score | Umbral muy alto para el estado actual | Bajar `fail_on_score_below` 10 pts |
-| Nadie presta atención al score porque nunca falla | Umbral muy bajo | Subir 5 pts cada sprint |
-| Muchas violaciones SDP "falsas" | `sdp_threshold` muy bajo | Subir a 0.4 |
-| Fan-out siempre penaliza a `app` | `high_fan_out_threshold` muy bajo | Subir 2 unidades |
-| Los ciclos no pesan lo suficiente en el equipo | `cycle` percibido como "un número más" | Considerar subirlo a 25 |
+| CI fails on every PR | Score gate too high | Lower `fail_on_score_below` by 10 |
+| Nobody pays attention because it never fails | Score gate too low | Raise 5 pts per sprint |
+| Many "false" SDP violations | `sdp_threshold` too low | Raise to 0.4 |
+| Fan-out always flags `app` | `high_fan_out_threshold` too low | Raise by 2 |
+| Cycles don't feel costly enough | `cycle` perceived as "just a number" | Consider raising to 25 |
 
----
-
-## Ver también
-
-Los configs listos para copiar están en `examples/`:
-- `examples/prototype/` — prototipo y solo dev
-- `examples/small/` — app pequeña
-- `examples/medium/` — app mediana
-- `examples/large/` — app grande
+See ready-to-copy configs in `examples/`.

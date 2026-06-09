@@ -1,41 +1,41 @@
 # pfranccino-dev-skills
 
-Colección de skills para Claude — herramientas de análisis y arquitectura de software.
+Collection of Claude skills — software analysis and architecture tools.
 
-## Skills disponibles
+## Available skills
 
-| Skill | Qué hace |
+| Skill | What it does |
 |---|---|
-| [`android-gradle-health`](skills/android-gradle-health/) | Analiza y mejora la salud arquitectónica de proyectos Android multi-módulo con [android-gradle-analyzer](https://github.com/pfranccino/android-gradle-analyzer): ciclos, violaciones SDP, métricas Ca/Ce/I, health score y lógica compartida mal ubicada. Convierte el output en diagnósticos accionables con pasos de remediación. |
+| [`android-gradle-health`](skills/android-gradle-health/) | Analyzes and improves architectural health of Android multi-module projects with [android-gradle-analyzer](https://github.com/pfranccino/android-gradle-analyzer): cycles, SDP violations, Ca/Ce/I metrics, health score, and misplaced shared logic. Runs the CLIs, captures JSON output, and turns it into actionable diagnostics with remediation steps. |
 
-## Estructura
+## Structure
 
 ```
 pfranccino-dev-skills/
 ├── README.md
 └── skills/
     └── android-gradle-health/
-        ├── SKILL.md          # entrada: descripción, mapa de comandos, flujo
-        ├── references/       # guías bajo demanda (fix-cycles, thresholds, etc.)
-        └── examples/         # configs por tamaño de proyecto, listos para copiar
+        ├── SKILL.md          # entry point: description, command map, JSON schemas, workflow
+        ├── references/       # on-demand guides (fix-cycles, fix-sdp, thresholds, etc.)
+        └── examples/         # ready-to-copy configs by project size
 ```
 
-Cada skill vive en `skills/<nombre>/` con su `SKILL.md` como punto de entrada.
+Each skill lives in `skills/<name>/` with its `SKILL.md` as the entry point.
 
-## Uso
+## Usage
 
-Para usar una skill en Claude Code, copia su carpeta al directorio de skills:
+To use a skill in Claude Code, copy its folder to the skills directory:
 
 ```bash
-# Personal (todas tus sesiones)
+# Personal (all your sessions)
 cp -r skills/android-gradle-health ~/.claude/skills/
 
-# Por proyecto
-cp -r skills/android-gradle-health <tu-proyecto>/.claude/skills/
+# Per project
+cp -r skills/android-gradle-health <your-project>/.claude/skills/
 ```
 
-Claude la activará automáticamente cuando el contexto coincida con su `description`.
+Claude will activate it automatically when the context matches its `description`.
 
-## Licencia
+## License
 
 MIT

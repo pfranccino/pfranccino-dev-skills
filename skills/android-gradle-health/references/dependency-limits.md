@@ -1,22 +1,30 @@
-# Límites de dependencias: coupling_limits y coupling_overrides
+# Dependency limits: coupling_limits and coupling_overrides
 
-## Cómo funciona la detección (sin keywords de nombres)
+## How the detection works (no name-based heuristics)
 
-`_check_leaf_coupling()` detecta módulos de alto nivel de los que otros dependen.
-No usa nombres — usa métricas medidas:
+The detector identifies high-level modules that others depend on — using measured
+metrics, not module names:
 
-1. **Excluye automáticamente** módulos con `I < leaf_instability` (default: 0.70).
-   Core/common tienen I bajo → nunca penalizados, Ca alto es esperado en ellos.
-2. **Detecta app** leyendo el build file: si contiene `com.android.application` es app.
-3. **El resto** con `I >= 0.70` y `Ca > leaf_max_ca` son `feature` (lógica compartida mal ubicada).
+1. **Automatically excludes** modules with `I < leaf_instability` (default: 0.70).
+   Core/common have low I → never flagged, their high Ca is expected.
+2. **Detects app** by reading the build file: if it contains `com.android.application`, it's an app.
+3. **Everything else** with `I >= 0.70` and `Ca > leaf_max_ca` is a `feature` (misplaced shared logic).
 
 ```
-I = 0.0 → muy estable (core, common)     → excluido, Ca alto es correcto
-I = 0.5 → intermedio (data, domain)       → excluido si I < 0.70
-I = 0.83 → inestable (feature)            → incluido si Ca > leaf_max_ca
+I = 0.0 → very stable (core, common)     → excluded, high Ca is correct
+I = 0.5 → intermediate (data, domain)    → excluded if I < 0.70
+I = 0.83 → unstable (feature)            → flagged if Ca > leaf_max_ca
 ```
 
-## Configuración en `analyzer_config.json`
+In the `gradle-sanity --json` output:
+
+```json
+"coupling_issues": [
+  { "module": "payments:checkout", "kind": "feature", "I": 0.71, "ca": 2, "max_ca": 1 }
+]
+```
+
+## Configuration in `analyzer_config.json`
 
 ```json
 "coupling_limits": {
@@ -34,83 +42,62 @@ I = 0.83 → inestable (feature)            → incluido si Ca > leaf_max_ca
 }
 ```
 
-### Parámetros
+### Parameters
 
-| Parámetro | Descripción | Default |
+| Parameter | Description | Default |
 |---|---|---|
-| `leaf_instability` | I mínimo para considerar un módulo como hoja/feature | 0.70 |
-| `leaf_max_ca` | Ca máximo permitido para un módulo feature | 1 |
-| `leaf_penalty` | Puntos a restar por feature con Ca excesivo | 0 (advisory) |
-| `app_max_ca` | Ca máximo permitido para el módulo app | 0 |
-| `app_penalty` | Puntos a restar por app con Ca > 0 | 0 (advisory) |
+| `leaf_instability` | Minimum I to consider a module as leaf/feature | 0.70 |
+| `leaf_max_ca` | Maximum allowed Ca for a feature module | 1 |
+| `leaf_penalty` | Points deducted per feature with excessive Ca | 0 (advisory) |
+| `app_max_ca` | Maximum allowed Ca for the app module | 0 |
+| `app_penalty` | Points deducted per app with Ca > 0 | 0 (advisory) |
 
-### `coupling_overrides` — valores posibles
+### `coupling_overrides` — possible values
 
-| Valor | Efecto |
+| Value | Effect |
 |---|---|
-| `"app"` | Fuerza tratamiento como punto de entrada (app) |
-| `"leaf"` | Fuerza tratamiento como feature/hoja |
-| `"ignore"` | Excluye el módulo de esta validación |
+| `"app"` | Force treatment as entry point (app) |
+| `"leaf"` | Force treatment as feature/leaf |
+| `"ignore"` | Exclude module from this validation |
 
-Match por nombre completo primero, luego por último segmento del path:
-`"payments:home"` o simplemente `"home"` funcionan ambos.
+Matches by full name first, then by last path segment:
+`"payments:home"` or just `"home"` both work.
 
 ---
 
-## Cuándo usar `coupling_overrides`
+## When to use `coupling_overrides`
 
-La inferencia funciona bien en la mayoría de casos. Usar overrides cuando:
+The inference works well in most cases. Use overrides when:
 
-**`"ignore"`** — módulo en transición o con arquitectura especial conocida:
+**`"ignore"`** — module in transition or with known special architecture:
 ```json
-"coupling_overrides": {
-  "legacy-bridge": "ignore"
-}
+"coupling_overrides": { "legacy-bridge": "ignore" }
 ```
 
-**`"app"`** — módulo con nombre distinto que también aplica `com.android.application`,
-o si la detección automática por plugin falla:
+**`"app"`** — module with a different name that also applies `com.android.application`:
 ```json
-"coupling_overrides": {
-  "launcher": "app"
-}
+"coupling_overrides": { "launcher": "app" }
 ```
 
-**`"leaf"`** — módulo con I bajo artificialmente (muchas deps en build time como kapt/ksp)
-pero que conceptualmente es una feature:
+**`"leaf"`** — module with artificially low I (many build-time deps like kapt/ksp)
+that is conceptually a feature:
 ```json
-"coupling_overrides": {
-  "payments": "leaf"
-}
+"coupling_overrides": { "payments": "leaf" }
 ```
 
 ---
 
-## Recomendaciones por tamaño de proyecto
+## Recommendations by project size
 
-### Arrancar en modo advisory (leaf_penalty: 0)
+Always start in advisory mode (`leaf_penalty: 0`). Review the issues in the report
+and decide if they're real problems before activating the gate.
 
-Siempre empezar sin penalización. El reporte muestra los problemas sin romper CI.
-Revisarlos manualmente y decidir si son problemas reales antes de activar el gate.
-
-### Activar gradualmente
-
-```json
-"coupling_limits": {
-  "leaf_instability": 0.70,
-  "leaf_max_ca":      1,
-  "leaf_penalty":     5,
-  "app_max_ca":       0,
-  "app_penalty":      10
-}
-```
-
-| Tamaño | leaf_instability | leaf_max_ca | leaf_penalty | app_penalty |
+| Size | leaf_instability | leaf_max_ca | leaf_penalty | app_penalty |
 |---|---|---|---|---|
-| Prototipo (1–5 mód.) | 0.80 | 2 | 0 | 0 |
-| App pequeña (5–15) | 0.75 | 1 | 0 | 5 |
-| App mediana (15–30) | 0.70 | 1 | 5 | 10 |
-| App grande (30+) | 0.65 | 1 | 8 | 15 |
+| Prototype (1–5 modules) | 0.80 | 2 | 0 | 0 |
+| Small app (5–15) | 0.75 | 1 | 0 | 5 |
+| Medium app (15–30) | 0.70 | 1 | 5 | 10 |
+| Large app (30+) | 0.65 | 1 | 8 | 15 |
 
-**`leaf_instability` más bajo** → más módulos quedan dentro del scope de validación.
-En proyectos grandes las capas deben estar más definidas — bajar el umbral tiene sentido.
+Lower `leaf_instability` → more modules fall within the validation scope.
+In large projects, layer boundaries should be stricter.
