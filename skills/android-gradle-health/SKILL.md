@@ -21,23 +21,31 @@ capturing their JSON output, and delivering actionable analysis.
 ## Prerequisite: verify installation
 
 ```bash
-pip show android-gradle-analyzer 2>/dev/null | head -2
+pipx list | grep android-gradle-analyzer
 ```
 
 If not installed:
 
 ```bash
-pip install android-gradle-analyzer --break-system-packages
-```
-
-For Kotlin DSL projects (`.gradle.kts`), the `kts` extra provides better accuracy
-via AST parsing instead of regex:
-
-```bash
-pip install "android-gradle-analyzer[kts]" --break-system-packages
+pipx install android-gradle-analyzer
 ```
 
 > Requires **android-gradle-analyzer ≥ 1.4.0** (`--engine` support).
+> 
+> **Recommended:** Use `pipx` for isolated tool installation. If `pipx` is not available, install it with `brew install pipx` (macOS) or `pip install pipx` (Linux/Windows).
+
+### Optional: Enhanced Kotlin DSL support
+
+If the project uses Kotlin DSL (`.gradle.kts` files) and you need better accuracy via AST parsing:
+
+```bash
+pipx install "android-gradle-analyzer[kts]"
+```
+
+The base version supports `.kts` files using regex, but the `[kts]` extra adds tree-sitter-kotlin AST parser that correctly handles:
+- Multiline dependency declarations
+- Commented dependency code
+- Complex Kotlin DSL syntax
 
 ---
 
