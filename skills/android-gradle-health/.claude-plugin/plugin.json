@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "android-gradle-health",
+  "displayName": "Android Gradle Health",
+  "version": "1.0.0",
+  "description": "Analiza y mejora la salud arquitectónica de proyectos Android multi-módulo usando android-gradle-analyzer: ciclos, violaciones SDP, métricas Ca/Ce/I, health score y lógica compartida mal ubicada.",
+  "author": {
+    "name": "pfranccino",
+    "url": "https://github.com/pfranccino"
+  },
+  "repository": "https://github.com/pfranccino/pfranccino-dev-skills",
+  "license": "MIT",
+  "keywords": ["android", "gradle", "architecture", "dependencies", "health", "metrics"]
+}

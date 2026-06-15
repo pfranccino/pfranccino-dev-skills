@@ -24,6 +24,8 @@ capturing their JSON output, and delivering actionable analysis.
 pipx list | grep android-gradle-analyzer
 ```
 
+### Option A — Permanent installation (recommended)
+
 If not installed:
 
 ```bash
@@ -31,10 +33,11 @@ pipx install android-gradle-analyzer
 ```
 
 > Requires **android-gradle-analyzer ≥ 1.4.0** (`--engine` support).
-> 
-> **Recommended:** Use `pipx` for isolated tool installation. If `pipx` is not available, install it with `brew install pipx` (macOS) or `pip install pipx` (Linux/Windows).
+>
+> **Recommended:** Use `pipx` for isolated tool installation. If `pipx` is not available,
+> install it with `brew install pipx` (macOS) or `pip install pipx` (Linux/Windows).
 
-### Optional: Enhanced Kotlin DSL support
+#### Optional: Enhanced Kotlin DSL support
 
 If the project uses Kotlin DSL (`.gradle.kts` files) and you need better accuracy via AST parsing:
 
@@ -42,14 +45,35 @@ If the project uses Kotlin DSL (`.gradle.kts` files) and you need better accurac
 pipx install "android-gradle-analyzer[kts]"
 ```
 
-The base version supports `.kts` files using regex, but the `[kts]` extra adds tree-sitter-kotlin AST parser that correctly handles:
+The base version supports `.kts` files using regex, but the `[kts]` extra adds
+tree-sitter-kotlin AST parser that correctly handles:
 - Multiline dependency declarations
 - Commented dependency code
 - Complex Kotlin DSL syntax
 
+### Option B — Temporary env, no installation
+
+If you don't want to install the tool permanently, prefix every command with
+`pipx run --spec "android-gradle-analyzer>=1.4.0"`. `pipx` creates an isolated
+temporary Python environment, reuses it on subsequent calls in the session,
+and never modifies your global environment. Only requires `pipx` in PATH.
+
+```bash
+# Example: instead of gradle-sanity <path> --json --quiet
+pipx run --spec "android-gradle-analyzer>=1.4.0" gradle-sanity <path> --json --quiet
+```
+
+| When to use | Option |
+|---|---|
+| Own machine, frequent use | A — permanent install |
+| CI/CD or shared envs without write permissions | B — `pipx run --spec` |
+| Testing a specific version without affecting the installed one | B — `pipx run --spec "android-gradle-analyzer==X.Y.Z"` |
+
 ---
 
 ## The four commands — always use `--json --quiet`
+
+> If using Option B, prefix every command with `pipx run --spec "android-gradle-analyzer>=1.4.0"`.
 
 Every command supports `--json` (structured output to stdout) and `--quiet`
 (suppresses progress). Always use both to get clean, parseable data.
