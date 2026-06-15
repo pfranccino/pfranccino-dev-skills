@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "android-gradle-health",
   "displayName": "Android Gradle Health",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Analyzes and shows the architectural health of Android multi-module Gradle projects: dependency graph, cycles, SDP violations, Ca/Ce/I metrics, health score, and misplaced shared logic.",
   "author": {
     "name": "pfranccino",

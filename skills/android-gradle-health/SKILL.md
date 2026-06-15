@@ -32,7 +32,7 @@ If not installed:
 pipx install android-gradle-analyzer
 ```
 
-> Requires **android-gradle-analyzer ≥ 1.4.0** (`--engine` support).
+> Requires **android-gradle-analyzer ≥ 1.7.0** (`--json` output in all 4 tools).
 >
 > **Recommended:** Use `pipx` for isolated tool installation. If `pipx` is not available,
 > install it with `brew install pipx` (macOS) or `pip install pipx` (Linux/Windows).
@@ -92,7 +92,7 @@ Common flags:
 | `--engine static\|dynamic\|auto` | Extraction engine (default: `static` — text-only, safe) |
 | `--config <path>` | Custom `analyzer_config.json` |
 | `--focus <module[,module]>` | Focus analysis on specific modules |
-| `--depth <N>` | Limit traversal depth |
+| `--depth N\|all` | Limit traversal depth (default: `all`) |
 
 ### Extraction engines
 
@@ -216,10 +216,11 @@ Score formula: `100 − sum of all active penalties`.
 ```json
 {
   "schema_version": 1,
-  "tool": "externals",
+  "tool": "external",
+  "project": "/path/to/project",
   "target": "payments",
-  "internal_modules": ["payments", "payments:common"],
-  "callers": {
+  "depth": "all",
+  "external_callers": {
     "cart": { "payments": ["implementation"] },
     "checkout": { "payments": ["implementation"] }
   },
