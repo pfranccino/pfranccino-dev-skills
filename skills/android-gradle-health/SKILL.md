@@ -32,7 +32,7 @@ If not installed:
 pipx install android-gradle-analyzer
 ```
 
-> Requires **android-gradle-analyzer ≥ 1.7.0** (`--json` output in all 4 tools).
+> Requires **android-gradle-analyzer ≥ 1.7.0** (`--json` output in all 4 tools, `--engine` support).
 >
 > **Recommended:** Use `pipx` for isolated tool installation. If `pipx` is not available,
 > install it with `brew install pipx` (macOS) or `pip install pipx` (Linux/Windows).
