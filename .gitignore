@@ -1,0 +1,6 @@
+# android-gradle-analyzer report output — regenerated whenever the analyzer
+# (or the red-team test) runs from the repo root. Not source; never commit.
+/sanity/
+/diagrams/
+/impact/
+/external-calls/
