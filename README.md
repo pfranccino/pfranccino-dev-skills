@@ -6,7 +6,7 @@ Collection of Claude Code plugins — software analysis and architecture tools.
 
 | Plugin | What it does |
 |---|---|
-| [`android-gradle-health`](skills/android-gradle-health/) | Analyzes and improves architectural health of Android multi-module projects with [android-gradle-analyzer](https://github.com/pfranccino/android-gradle-analyzer): cycles, SDP violations, Ca/Ce/I metrics, health score, and misplaced shared logic. Runs the CLIs, captures JSON output, and turns it into actionable diagnostics with remediation steps. |
+| [`android-gradle-health`](skills/android-gradle-health/) | Analyzes and shows the architectural health of Android multi-module projects with [android-gradle-analyzer](https://github.com/pfranccino/android-gradle-analyzer): dependency graph, cycles, SDP violations, Ca/Ce/I metrics, health score, and misplaced shared logic. Runs the CLIs, captures JSON output, and presents the findings as a clear diagnosis. |
 
 ## Structure
 

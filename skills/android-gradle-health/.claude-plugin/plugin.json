@@ -3,7 +3,7 @@
   "name": "android-gradle-health",
   "displayName": "Android Gradle Health",
   "version": "1.0.0",
-  "description": "Analiza y mejora la salud arquitectónica de proyectos Android multi-módulo usando android-gradle-analyzer: ciclos, violaciones SDP, métricas Ca/Ce/I, health score y lógica compartida mal ubicada.",
+  "description": "Analyzes and shows the architectural health of Android multi-module Gradle projects: dependency graph, cycles, SDP violations, Ca/Ce/I metrics, health score, and misplaced shared logic.",
   "author": {
     "name": "pfranccino",
     "url": "https://github.com/pfranccino"

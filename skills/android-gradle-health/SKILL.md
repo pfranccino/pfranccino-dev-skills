@@ -1,11 +1,11 @@
 ---
 name: android-gradle-health
 description: >
-  Analyzes and improves architectural health of Android multi-module projects using
+  Analyzes and shows the architectural health of Android multi-module projects using
   android-gradle-analyzer. Use whenever the user mentions Gradle dependencies, module
   cycles, SDP violations, Ca/Ce/I metrics, health scores, change impact, what breaks
-  if module X changes, misplaced shared logic, or wants to know if their architecture
-  is healthy. Also triggers for questions about coupling_limits, coupling_overrides,
+  if module X changes, misplaced shared logic, or wants to see how healthy their architecture
+  is. Also triggers for questions about coupling_limits, coupling_overrides,
   modularization, Gradle scopes (api vs implementation), or threshold calibration.
   Triggers even if the user doesn't name the tool — if they have
   an Android multi-module project and ask about dependencies or architecture, this
