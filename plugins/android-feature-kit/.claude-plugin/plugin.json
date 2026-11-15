@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "android-feature-kit",
+  "displayName": "Android Feature Kit",
+  "version": "0.1.0",
+  "description": "Skills to build an Android feature module layer by layer: Navigation Compose 2 graphs, MVI presentation with Compose, pure Kotlin domain, offline-first data, Room 3 and DataStore.",
+  "author": {
+    "name": "pfranccino",
+    "url": "https://github.com/pfranccino"
+  },
+  "homepage": "https://github.com/pfranccino/pfranccino-dev-skills/tree/main/plugins/android-feature-kit",
+  "repository": "https://github.com/pfranccino/pfranccino-dev-skills",
+  "license": "MIT",
+  "keywords": ["android", "kotlin", "jetpack-compose", "architecture", "mvi", "room", "datastore", "navigation"],
+  "skills": [
+    "./skills/feature-navigation-compose",
+    "./skills/feature-ui-compose",
+    "./skills/domain-layer",
+    "./skills/data-repository",
+    "./skills/data-room",
+    "./skills/data-datastore"
+  ]
+}

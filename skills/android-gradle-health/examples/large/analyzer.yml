@@ -1,4 +1,0 @@
-# Profile: Large app (30+ modules, 5+ devs / multiple squads)
-sanity:
-  fail_on_cycle: true
-  fail_on_score_below: 78

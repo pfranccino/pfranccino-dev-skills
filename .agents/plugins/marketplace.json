@@ -1,0 +1,20 @@
+{
+  "name": "pfranccino-dev-skills",
+  "interface": {
+    "displayName": "pfranccino dev skills"
+  },
+  "plugins": [
+    {
+      "name": "android-feature-kit",
+      "source": {
+        "source": "local",
+        "path": "./plugins/android-feature-kit"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

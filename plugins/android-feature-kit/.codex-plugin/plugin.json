@@ -1,0 +1,32 @@
+{
+  "name": "android-feature-kit",
+  "version": "0.1.0",
+  "description": "Skills to build an Android feature module layer by layer: Navigation Compose 2 graphs, MVI presentation with Compose, pure Kotlin domain, offline-first data, Room 3 and DataStore.",
+  "author": {
+    "name": "pfranccino",
+    "url": "https://github.com/pfranccino"
+  },
+  "repository": "https://github.com/pfranccino/pfranccino-dev-skills",
+  "license": "MIT",
+  "keywords": ["android", "kotlin", "jetpack-compose", "architecture", "mvi", "room", "datastore", "navigation"],
+  "skills": [
+    "./skills/feature-navigation-compose",
+    "./skills/feature-ui-compose",
+    "./skills/domain-layer",
+    "./skills/data-repository",
+    "./skills/data-room",
+    "./skills/data-datastore"
+  ],
+  "interface": {
+    "displayName": "Android Feature Kit",
+    "shortDescription": "Build an Android feature module layer by layer.",
+    "developerName": "pfranccino",
+    "category": "Developer Tools",
+    "capabilities": ["Skills"],
+    "websiteURL": "https://github.com/pfranccino/pfranccino-dev-skills",
+    "defaultPrompt": [
+      "Add a detail screen to the orders feature.",
+      "Create the offline-first repository for orders."
+    ]
+  }
+}

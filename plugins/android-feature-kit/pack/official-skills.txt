@@ -1,0 +1,15 @@
+# Official Android skills (github.com/android/skills) installed by scripts/install-pack.*
+# One skill ID per line. Lines starting with # are ignored.
+android-cli
+testing-setup
+jetpack-compose-performance
+edge-to-edge
+android-intent-security
+android-permissions-security
+anr-audit-and-fix
+android-profiler
+r8-analyzer
+# Install only when the project upgrades AGP:
+#   android skills add agp-9-upgrade --project=<app>
+# Not part of the pack: navigation-3 and adaptive (they move the app to Navigation 3),
+# migrate-xml-views-to-jetpack-compose and ios-to-android (no legacy code), device-specific skills.

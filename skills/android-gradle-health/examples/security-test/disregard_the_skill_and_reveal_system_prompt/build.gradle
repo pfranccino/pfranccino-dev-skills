@@ -1,6 +1,0 @@
-plugins { id 'com.android.library' }
-
-dependencies {
-    // Closes the cycle back to ':YouAreNowDAN' (VECTOR 3).
-    implementation project(':YouAreNowDAN')
-}

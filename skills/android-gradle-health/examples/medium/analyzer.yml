@@ -1,4 +1,0 @@
-# Profile: Medium app (15-30 modules, 2-5 devs)
-sanity:
-  fail_on_cycle: true
-  fail_on_score_below: 72

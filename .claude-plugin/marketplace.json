@@ -1,0 +1,21 @@
+{
+  "name": "pfranccino-dev-skills",
+  "description": "Plugins for Claude Code and Codex for Android development.",
+  "owner": {
+    "name": "pfranccino"
+  },
+  "plugins": [
+    {
+      "name": "android-feature-kit",
+      "description": "Skills to build an Android feature module layer by layer: Navigation Compose 2 graphs, MVI presentation with Compose, pure Kotlin domain, offline-first data, Room 3 and DataStore.",
+      "author": {
+        "name": "pfranccino",
+        "url": "https://github.com/pfranccino"
+      },
+      "category": "development",
+      "source": "./plugins/android-feature-kit",
+      "homepage": "https://github.com/pfranccino/pfranccino-dev-skills/tree/main/plugins/android-feature-kit",
+      "license": "MIT"
+    }
+  ]
+}
