@@ -1,56 +1,63 @@
 # pfranccino-dev-skills
 
-Collection of Claude Code plugins — software analysis and architecture tools.
+A marketplace of plugins for Claude Code and Codex for Android development.
 
-## Available plugins
+## Plugins
 
 | Plugin | What it does |
-|---|---|
-| [`android-gradle-health`](skills/android-gradle-health/) | Analyzes and shows the architectural health of Android multi-module projects with [android-gradle-analyzer](https://github.com/pfranccino/android-gradle-analyzer): dependency graph, cycles, SDP violations, Ca/Ce/I metrics, health score, and misplaced shared logic. Runs the CLIs, captures JSON output, and presents the findings as a clear diagnosis. |
+| :--- | :--- |
+| [`android-feature-kit`](plugins/android-feature-kit/) | Skills to build an Android feature module layer by layer: Navigation Compose 2 graphs, MVI presentation with Compose, pure Kotlin domain, offline-first data, Room 3 and DataStore. Works together with a selection of Google's official Android skills; its README documents which skills are ours, which are official and which come from other authors. |
+
+## Install
+
+Claude Code:
+
+```
+/plugin marketplace add pfranccino/pfranccino-dev-skills
+/plugin install android-feature-kit@pfranccino-dev-skills
+```
+
+Codex:
+
+```
+codex plugin marketplace add pfranccino/pfranccino-dev-skills
+codex plugin add android-feature-kit@pfranccino-dev-skills
+```
+
+Each plugin's README covers its extra setup. `android-feature-kit` also needs the official Android skills, installed with Android CLI.
 
 ## Structure
 
-Each plugin follows the official Claude Code plugin structure:
-
 ```
 pfranccino-dev-skills/
-└── skills/
-    └── android-gradle-health/
-        ├── .claude-plugin/
-        │   └── plugin.json       # plugin manifest (name, version, author)
-        ├── SKILL.md              # entry point: description, commands, JSON schemas, workflow
-        ├── references/           # on-demand guides (fix-cycles, fix-sdp, thresholds, etc.)
-        ├── examples/             # ready-to-copy configs by project size
-        ├── README.md             # plugin documentation
-        └── CHANGELOG.md          # version history
+├── .claude-plugin/marketplace.json   Claude Code marketplace
+├── .agents/plugins/marketplace.json  Codex marketplace
+└── plugins/
+    └── android-feature-kit/
+        ├── .claude-plugin/plugin.json
+        ├── .codex-plugin/plugin.json
+        ├── skills/                    one folder per skill, each with its SKILL.md
+        ├── pack/official-skills.txt   official Android skills that complement the kit
+        ├── scripts/                   install-pack.ps1, install-pack.sh
+        ├── README.md
+        ├── CHANGELOG.md
+        └── THIRD_PARTY_NOTICES.md
 ```
 
-## Installation
+To add a plugin, create its folder under `plugins/` and register it in both marketplace files.
 
-### Personal (all your sessions)
+## Test changes locally
 
-```bash
-cp -r skills/android-gradle-health ~/.claude/skills/
+From a clone, before pushing:
+
+```
+claude plugin validate .
+/plugin marketplace add ./                      (Claude Code, inside the clone)
+codex plugin marketplace add .
 ```
 
-The plugin loads automatically as `android-gradle-health@skills-dir` on the next session.
-Claude activates it when the context matches its `description`, or invoke it manually
-with `/android-gradle-health:android-gradle-health`.
-
-### Per project (shared with your team)
-
-```bash
-cp -r skills/android-gradle-health <your-project>/.claude/skills/
-```
-
-Commit the `.claude/` directory so teammates get the plugin when they clone.
-
-### Via CLI
-
-```bash
-claude plugin init android-gradle-health
-```
+To try a branch from GitHub before it is merged: `codex plugin marketplace add pfranccino/pfranccino-dev-skills@<branch>`.
 
 ## License
 
-MIT
+MIT, see [LICENSE](LICENSE). Each plugin lists its third-party material in its own `THIRD_PARTY_NOTICES.md`.
