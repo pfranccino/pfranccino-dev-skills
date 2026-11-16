@@ -2,7 +2,8 @@
 
 ## 0.2.0 — 2026-11-16
 
-- `feature-ui-compose`: ViewModels no longer start work in `init`. The stateful screen sends `UiAction.Started` from `LaunchedEffect(viewModel)`, and the ViewModel runs it once. The example, the offline-first rule, the tests and the final checklist follow the new pattern.
+- `feature-ui-compose`: ViewModels no longer start work in `init`. The stateful screen sends `UiAction.OnStart` from `LaunchedEffect(viewModel)`, and the ViewModel runs it once. If the project's MVI delegate or screens already start the first load another way that runs no work at construction, that way is used instead. The example, the offline-first rule, the tests and the final checklist follow the new pattern.
+- `feature-ui-compose`: `UiAction` names use the present tense with an `On` prefix, like Compose callbacks (`OnStart`, `OnRetryClick`, `OnCancelClick`, `OnAmountChange`).
 
 ## 0.1.0 — 2026-11-15
 
