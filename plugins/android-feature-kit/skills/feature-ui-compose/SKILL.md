@@ -41,6 +41,7 @@ internal object OrderDetailContract {
     )
 
     sealed interface UiAction {
+        data object Started : UiAction
         data object Retry : UiAction
         data object CancelClicked : UiAction
         data object HelpClicked : UiAction
@@ -55,7 +56,7 @@ internal object OrderDetailContract {
 
 - `UiState` is an immutable `data class` whose defaults are the initial state. Model loading, content, empty and error explicitly.
 - What the screen shows is a presentation model (`OrderUi`) when it needs formatting or combines several domain models. Format amounts, dates and masks when mapping to it, not inside composables.
-- `UiAction` is named by what the user did (`CancelClicked`, `Retry`, `AmountChanged`), not by what the ViewModel will do next.
+- `UiAction` is named by what happened on the screen (`Started`, `CancelClicked`, `Retry`, `AmountChanged`), not by what the ViewModel will do next. A screen that loads data has a `Started` action.
 - `SideEffect` is only for one-off events that state cannot express: a flow exit that becomes a navigation callback, a one-time message. If it can be shown as state, it is state.
 - Errors in `UiState` are presentation errors (a sealed type or a string resource id) mapped from the domain error. Domain errors never reach composables.
 
@@ -73,16 +74,13 @@ internal class OrderDetailViewModel @Inject constructor(
     by mvi(OrderDetailContract.UiState()) {
 
     private val orderId = OrderId(savedStateHandle.toRoute<OrderRoutes.Detail>().orderId)
+    private var started = false
     private var observeJob: Job? = null
     private var refreshJob: Job? = null
 
-    init {
-        observe()
-        refresh()
-    }
-
     override fun onAction(action: OrderDetailContract.UiAction) {
         when (action) {
+            OrderDetailContract.UiAction.Started -> start()
             OrderDetailContract.UiAction.Retry -> {
                 if (observeJob?.isActive != true) observe()
                 refresh()
@@ -91,6 +89,13 @@ internal class OrderDetailViewModel @Inject constructor(
             OrderDetailContract.UiAction.HelpClicked ->
                 viewModelScope.emitSideEffect(OrderDetailContract.SideEffect.HelpRequested)
         }
+    }
+
+    private fun start() {
+        if (started) return
+        started = true
+        if (observeJob?.isActive != true) observe()
+        refresh()
     }
 
     private fun observe() {
@@ -126,7 +131,8 @@ internal class OrderDetailViewModel @Inject constructor(
 - One ViewModel per screen, `internal`, `@HiltViewModel`, implementing the MVI contract by delegation. State and effects go only through the delegate. Do not add your own `MutableStateFlow`, `Channel` or `SharedFlow` next to it.
 - The ViewModel depends on use cases only. It never receives a repository (not even its domain interface), a data source, a DAO, an API or a `Context`.
 - `onAction` is an exhaustive `when` with no `else` branch.
-- Offline-first screens observe and refresh separately. Start the observation in `init`, with a `.catch` that turns a local read failure into an error state. `catch` ends the flow, so `Retry` starts the observation again when it is no longer active. Call the refresh use case on start and on `Retry`, and ignore `Retry` while a refresh is still running. Cached content stays on screen while refreshing, and a refresh error is shown next to the content without replacing it.
+- The constructor, `init` blocks and property initializers start no work: no use case calls, no `launch`, no `launchIn`. Reading route arguments there is fine. Loading starts when the stateful screen sends `Started`. The screen sends it again each time it re-enters composition, for example after a configuration change or when the user navigates back to it, so the ViewModel runs it once per instance and ignores the rest. Keep `started` as a plain field, not in `SavedStateHandle`: the new instance after process death has to start again.
+- Offline-first screens observe and refresh separately. `Started` starts the observation, with a `.catch` that turns a local read failure into an error state. `catch` ends the flow, so `Retry` starts the observation again when it is no longer active. Call the refresh use case on `Started` and on `Retry`, and ignore `Retry` while a refresh is still running. Cached content stays on screen while refreshing, and a refresh error is shown next to the content without replacing it.
 - Handle every `Either` result. A `Left` updates state or emits an effect; it is never dropped.
 - Do not catch `CancellationException`, directly or through `catch (e: Exception)` or `runCatching`. Use cases return `Either`, so expected failures need no try/catch here.
 - No navigation, no `NavController`, no Android resources resolved in the ViewModel. Text is resolved from resources in the composable.
@@ -146,6 +152,10 @@ internal fun OrderDetailScreen(
     viewModel: OrderDetailViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+
+    LaunchedEffect(viewModel) {
+        viewModel.onAction(OrderDetailContract.UiAction.Started)
+    }
 
     CollectSideEffect(viewModel.sideEffect) { effect ->
         when (effect) {
@@ -171,8 +181,8 @@ internal fun OrderDetailScreenContent(
 }
 ```
 
-- `XScreen` is stateful: it resolves the ViewModel, collects state with `collectAsStateWithLifecycle()` and turns each `SideEffect` into a call to a callback. Its callbacks have no default values, so a missing wiring fails to compile.
-- `XScreenContent` is stateless: state in, `onAction` out. Previews and UI tests target it.
+- `XScreen` is stateful: it resolves the ViewModel, sends `Started` from `LaunchedEffect(viewModel)` when the screen loads data, collects state with `collectAsStateWithLifecycle()` and turns each `SideEffect` into a call to a callback. Its callbacks have no default values, so a missing wiring fails to compile.
+- `XScreenContent` is stateless: state in, `onAction` out. It never sends `Started`, so previews and UI tests that target it load nothing.
 - Neither receives `NavController` or `NavBackStackEntry`. Do not name composables `XRoute`; `Route` is reserved for navigation routes.
 - The `hiltViewModel()` import depends on the project's Hilt version: `androidx.hilt.lifecycle.viewmodel.compose` on Hilt 1.3 or later, `androidx.hilt.navigation.compose` before that. Use the one the project already imports.
 
@@ -192,7 +202,7 @@ One preview per meaningful state of `XScreenContent`: content, loading, empty an
 
 ## Tests
 
-- ViewModel unit tests with fake use cases: each action produces the expected state, each effect is emitted once, and each `Left` ends up in state or in an effect. Use the project's main dispatcher rule, and Turbine if the project already has it.
+- ViewModel unit tests with fake use cases: creating the ViewModel calls no use case, `Started` loads once even when sent twice, `Retry` before `Started` leaves a single observation, each action produces the expected state, each effect is emitted once, and each `Left` ends up in state or in an effect. Use the project's main dispatcher rule, and Turbine if the project already has it.
 - A Compose UI test on `XScreenContent` when the module already has UI tests.
 
 ## Before finishing
@@ -202,8 +212,9 @@ Check the code you wrote:
 - Presentation imports nothing from the `data` package, and the ViewModel depends on use cases only.
 - Contract types, ViewModel and screens are `internal`. No `when` over actions or effects has an `else` branch.
 - State changes and effects go through the MVI delegate.
+- No work starts in the constructor, `init` or property initializers. On screens that load data, the first load starts on `Started` and runs once per ViewModel; `Retry` can load again.
 - Every `Either` result is handled and no `CancellationException` is swallowed.
-- Stateful screen: `hiltViewModel()`, `collectAsStateWithLifecycle()`, effects mapped to callbacks without defaults. Stateless screen: state and `onAction` only.
+- Stateful screen: `hiltViewModel()`, `Started` sent from `LaunchedEffect(viewModel)` if the screen loads data, `collectAsStateWithLifecycle()`, effects mapped to callbacks without defaults. Stateless screen: state and `onAction` only.
 - Text from resources, design system components, accessibility labels.
 - Previews cover each state of the stateless screen.
 

@@ -1,6 +1,6 @@
 {
   "name": "android-feature-kit",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Skills to build an Android feature module layer by layer: Navigation Compose 2 graphs, MVI presentation with Compose, pure Kotlin domain, offline-first data, Room 3 and DataStore.",
   "author": {
     "name": "pfranccino",
