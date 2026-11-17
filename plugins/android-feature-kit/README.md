@@ -18,7 +18,7 @@ You talk to Claude as usual. The main conversation coordinates the kit: it reads
 
 The six layer skills still work on their own. For a small change in one layer, ask for it directly and the matching skill loads, without agents.
 
-Claude decides whether a plain request loads `develop` or `analyze`, from each skill's description and from the block in your `CLAUDE.md`. When a request does not load the one you expect, use its shortcut.
+Claude decides whether a plain request loads `develop` or `analyze`, from each skill's description and from the routing block in your `CLAUDE.md`. When a request does not load the one you expect, use its shortcut.
 
 ```mermaid
 flowchart TB
@@ -54,15 +54,16 @@ Each agent sees only the main conversation's message, never the whole conversati
 
 A brief is proposed when the task creates a module, a screen, an endpoint or an entity, or changes what the user sees (offline behavior, errors, navigation exits, tracking events). A ticket with acceptance criteria is the brief. Otherwise the brief goes in `docs/features/<feature>/<task-id>.md` in the app repository.
 
-### The block in your CLAUDE.md
+### Routing in CLAUDE.md, rules in a file of their own
 
-[`claude-md-block.md`](skills/develop/references/claude-md-block.md), in the `develop` skill's `references/`, is a block to paste at the end of the app repository's `CLAUDE.md`. It holds what you approve once, for every task:
+The kit adds little to the app repository's `CLAUDE.md`, which Claude loads in every session:
 
-- Routing: which requests go to `develop`, which go to `analyze`, and that a small change in one layer uses the layer skill.
-- Exploration approved in advance: what Claude may read and run without asking while it plans. By default: reading files, searching and read-only git. Builds, test runs, generated maps, the network and agents are asked first.
-- Routine choices: names, file placement, reusing existing helpers and the structure of tests follow the code and are never questions. Everything else is asked.
+- [`claude-md-block.md`](skills/develop/references/claude-md-block.md) is a short block (one paragraph) to paste at the end of `CLAUDE.md`. It says which requests go to `develop`, which go to `analyze`, that a small change in one layer uses the layer skill, and that code changes, small ones included, start only after you approve the plan in Plan Mode.
+- [`project-rules.md`](skills/develop/references/project-rules.md) is copied to `.claude/android-feature-kit.md`. `develop` and `analyze` read it only when they start. It holds what you approve once, for every task:
+  - Exploration approved in advance: what Claude may read and run without asking while it plans. By default: reading files, searching and read-only git. Builds, test runs, generated maps, the network and agents are asked first.
+  - Routine choices: names, file placement, reusing existing helpers and the structure of tests follow the code and are never questions. Everything else is asked.
 
-Edit the lists to fit the repository. Without the block, `develop` and `analyze` propose its defaults once per session.
+Edit the lists to fit the repository. Both files are optional. Without the block, the skills still load from their descriptions. Without the rules file, `develop` and `analyze` propose its defaults once per session.
 
 ### Rules with IDs
 
@@ -117,7 +118,7 @@ You decide what the code cannot answer: behavior, scope, external contracts, eve
 
 | Moment | What you approve | Where |
 | :--- | :--- | :--- |
-| Before exploring | The exploration approved in advance, once: the `CLAUDE.md` block, or once per session without it | The conversation |
+| Before exploring | The exploration approved in advance, once: `.claude/android-feature-kit.md`, or once per session without it | The conversation |
 | Before any agent writes | The plan: goal, modules, decisions, brief, agents and their models, integration, checks, reviewer and round cap | Plan Mode |
 | Analysis | Which agent or tool answers, on which model, and what it runs | The conversation |
 | During the task | Anything the plan did not include: a contract change, a new dependency or version, a fix outside the plan, an agent that asks for a larger model, an escalation to `android-architect` | The conversation |
@@ -143,7 +144,7 @@ You decide what the code cannot answer: behavior, scope, external contracts, eve
 
 Bugs whose expected behavior is already clear, refactors and visual tweaks get no brief. For a bug whose expected behavior is ambiguous, the plan proposes writing your decision down before anyone implements it. A ticket with acceptance criteria is the brief. Without one, the brief goes in `docs/features/<feature>/<task-id>.md` and holds only the goal, observable acceptance criteria, open decisions and the contracts that apply.
 
-**What is asked.** Agents take conventions from one or two files in the same package of the module, or of a neighboring feature. The routine choices in the `CLAUDE.md` block are never questions. What the code cannot answer (behavior, offline handling, scope, the endpoint, the events, a new public interface or dependency, a migration strategy) is asked in one round before the plan. Subagents cannot ask you directly, so an agent that needs a decision stops with `STATUS: blocked` and the question, Claude asks you, and the same agent resumes with its context.
+**What is asked.** Agents take conventions from one or two files in the same package of the module, or of a neighboring feature. The routine choices in `.claude/android-feature-kit.md` are never questions. What the code cannot answer (behavior, offline handling, scope, the endpoint, the events, a new public interface or dependency, a migration strategy) is asked in one round before the plan. Subagents cannot ask you directly, so an agent that needs a decision stops with `STATUS: blocked` and the question, Claude asks you, and the same agent resumes with its context.
 
 **Which model.**
 
@@ -173,10 +174,11 @@ These decisions come from design debates between the maintainer, Claude and Code
 | Decision | Reason | Considered instead |
 | :--- | :--- | :--- |
 | The main conversation coordinates | It is how Claude Code delegates: the main conversation picks agents from their descriptions and from routing rules in `CLAUDE.md`. Subagents cannot ask you questions, and the coordinator has to. | An orchestrator agent; a session started with `--agent`; agent teams, which are experimental and meant for agents that coordinate among themselves; dynamic workflows, which take no input from you while they run |
-| Plain requests load the flow, and the commands are shortcuts | You describe the work as you would to a teammate. Skills load from their descriptions, and the `CLAUDE.md` block adds the routing. | Entry skills that run only when invoked (0.3.0) |
+| Plain requests load the flow, and the commands are shortcuts | You describe the work as you would to a teammate. Skills load from their descriptions, and a short block in `CLAUDE.md` adds the routing. | Entry skills that run only when invoked (0.3.0) |
 | Nothing writes before you approve the plan | Agents pause for human judgment at checkpoints and blockers, as Anthropic's guidance on orchestrator and worker agents describes. In 0.3.0 the flow chose the brief, the models, the escalations and the review on its own. | A fixed procedure that decides by itself |
 | Plan Mode for implementation, the conversation for analysis | Plan Mode keeps edits blocked until you approve; an analysis changes no source. | Plan Mode always, or the conversation always |
 | Exploration and routine choices are approved once | Reading the code to plan and following its names are not decisions. Asking about them every time turns each task into a questionnaire. | Asking before any exploration, and about every choice |
+| Only the routing goes in `CLAUDE.md` | `CLAUDE.md` belongs to the whole team and loads in every session. The limits and routine choices live in `.claude/android-feature-kit.md`, which the skills read only when they run. | The whole block in `CLAUDE.md`; a one-line import of the block, which still loads it in every session; nothing in `CLAUDE.md` |
 | The plan gate is optional | Instructions alone do not enforce approval, but a permission prompt on every launch repeats the approval you already gave. The gate checks each launch against the approved plan, and stays off until it has run in real sessions. | Instructions only; a permission prompt for every writing agent |
 | One kit run per checkout | The scope file belongs to the checkout, so two runs would overwrite each other's scope. | Several runs, each with its own scope |
 | One plugin with two coordinating skills | Whether a task needs a brief depends on the task, and whether it writes depends on the agent's tools; neither follows a plugin boundary. The reviewer needs the same rules the builders follow. | One plugin to develop and one to analyze |
@@ -312,7 +314,7 @@ In Claude Code:
 /plugin install android-feature-kit@pfranccino-dev-skills
 ```
 
-Then, in each app repository, paste [`skills/develop/references/claude-md-block.md`](skills/develop/references/claude-md-block.md) at the end of its `CLAUDE.md` and adjust its lists (see [The block in your CLAUDE.md](#the-block-in-your-claudemd)). The block is optional: without it, the kit proposes its defaults once per session.
+Then, in each app repository, paste [`skills/develop/references/claude-md-block.md`](skills/develop/references/claude-md-block.md) at the end of its `CLAUDE.md`, and copy [`skills/develop/references/project-rules.md`](skills/develop/references/project-rules.md) to `.claude/android-feature-kit.md` and adjust its lists (see [Routing in CLAUDE.md, rules in a file of their own](#routing-in-claudemd-rules-in-a-file-of-their-own)). Both are optional.
 
 ### 2. The official skills (once per machine)
 
