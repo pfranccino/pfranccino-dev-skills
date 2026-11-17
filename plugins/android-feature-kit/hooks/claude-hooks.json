@@ -1,0 +1,17 @@
+{
+  "description": "android-feature-kit: keeps each of the kit's agents inside its layer and stops its shell commands from writing files.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/run-python.sh\" \"${CLAUDE_PLUGIN_ROOT}/hooks/layer_guard.py\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -6,7 +6,7 @@ A marketplace of plugins for Claude Code and Codex for Android development.
 
 | Plugin | What it does |
 | :--- | :--- |
-| [`android-feature-kit`](plugins/android-feature-kit/) | Skills to build an Android feature module layer by layer: Navigation Compose 2 graphs, MVI presentation with Compose, pure Kotlin domain, offline-first data, Room 3 and DataStore. Works together with a selection of Google's official Android skills; its README documents which skills are ours, which are official and which come from other authors. |
+| [`android-feature-kit`](plugins/android-feature-kit/) | Skills to build an Android feature module layer by layer: Navigation Compose 2 graphs, MVI presentation with Compose, pure Kotlin domain, offline-first data, Room 3 and DataStore. On top of them, layer agents with an orchestrator (`/android-feature-kit:develop`), a read-only analysis flow (`/android-feature-kit:analyze`), a guardrail hook and Gradle check scripts. Works together with a selection of Google's official Android skills; its README documents which skills are ours, which are official and which come from other authors. |
 
 ## Install
 
@@ -36,7 +36,10 @@ pfranccino-dev-skills/
     └── android-feature-kit/
         ├── .claude-plugin/plugin.json
         ├── .codex-plugin/plugin.json
-        ├── skills/                    one folder per skill, each with its SKILL.md
+        ├── skills/                    one folder per skill, each with its SKILL.md and references/
+        ├── agents/                    the layer and analysis agents (Claude Code)
+        ├── hooks/                     the layer guard and its tests (Claude Code)
+        ├── repo-tools/agent-checks/   Gradle and test summary scripts, copied into an app repository
         ├── pack/official-skills.txt   official Android skills that complement the kit
         ├── scripts/                   install-pack.ps1, install-pack.sh
         ├── README.md

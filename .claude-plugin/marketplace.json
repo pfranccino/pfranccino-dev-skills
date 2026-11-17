@@ -7,7 +7,7 @@
   "plugins": [
     {
       "name": "android-feature-kit",
-      "description": "Skills to build an Android feature module layer by layer: Navigation Compose 2 graphs, MVI presentation with Compose, pure Kotlin domain, offline-first data, Room 3 and DataStore.",
+      "description": "Android feature development for Claude Code and Codex: team-rule skills for every layer (Navigation Compose 2, MVI with Compose, pure Kotlin domain, offline-first data, Room 3, DataStore), layer agents with an orchestrator, a read-only analysis flow and a guardrail hook that keeps the agents inside their layer.",
       "author": {
         "name": "pfranccino",
         "url": "https://github.com/pfranccino"

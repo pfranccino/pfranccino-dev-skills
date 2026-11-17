@@ -10,15 +10,19 @@
 #   --project <app> --with-team-skills   also copy the kit's skills (skills/*) into the app:
 #                                        claude -> .claude/skills, codex -> .agents/skills
 #                                        (do not combine this with the plugin)
+#   --project <app> --with-repo-tools    also copy the check scripts (repo-tools/agent-checks)
+#                                        into <app>/tools/agent-checks, where the kit's agents
+#                                        and CI use them
 #
 # Usage:
-#   scripts/install-pack.sh [--project ~/code/my-app] [--agents claude,codex] [--with-team-skills] [--dry-run]
+#   scripts/install-pack.sh [--project ~/code/my-app] [--agents claude,codex] [--with-team-skills] [--with-repo-tools] [--dry-run]
 set -euo pipefail
 
 plugin_root="$(cd "$(dirname "$0")/.." && pwd)"
 project=""
 agents="claude,codex"
 with_team_skills=false
+with_repo_tools=false
 dry_run=false
 
 while [ $# -gt 0 ]; do
@@ -26,14 +30,15 @@ while [ $# -gt 0 ]; do
     --project) project="$2"; shift 2 ;;
     --agents) agents="$2"; shift 2 ;;
     --with-team-skills) with_team_skills=true; shift ;;
+    --with-repo-tools) with_repo_tools=true; shift ;;
     --dry-run) dry_run=true; shift ;;
-    -h|--help) sed -n '2,16p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,19p' "$0"; exit 0 ;;
     *) echo "Unknown option: $1" >&2; exit 2 ;;
   esac
 done
 
-if [ "$with_team_skills" = true ] && [ -z "$project" ]; then
-  echo "--with-team-skills needs --project <path to the app repository>" >&2
+if { [ "$with_team_skills" = true ] || [ "$with_repo_tools" = true ]; } && [ -z "$project" ]; then
+  echo "--with-team-skills and --with-repo-tools need --project <path to the app repository>" >&2
   exit 2
 fi
 if [ -n "$project" ]; then
@@ -94,6 +99,13 @@ if [ "$with_team_skills" = true ]; then
   done
 fi
 
+# 3. Check scripts copied into the app repository
+if [ "$with_repo_tools" = true ]; then
+  target="$project/tools/agent-checks"
+  step "copy repo-tools/agent-checks -> $target" \
+    bash -c 'mkdir -p "$1" && cp "$2"/*.py "$2"/README.md "$1"/' _ "$target" "$plugin_root/repo-tools/agent-checks"
+fi
+
 echo
-echo "Done. Official skills: $official_count, scope: ${project:-global (this machine)}. Kit skill copies: $copied."
+echo "Done. Official skills: $official_count, scope: ${project:-global (this machine)}. Kit skill copies: $copied. Check scripts: $([ "$with_repo_tools" = true ] && echo "tools/agent-checks" || echo no)."
 echo "Update the official skills later with: android skills update --all --agent=$agents${project:+ --project=$project}"

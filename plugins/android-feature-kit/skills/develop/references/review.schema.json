@@ -1,0 +1,50 @@
+{
+  "type": "object",
+  "properties": {
+    "run_id": { "type": "string" },
+    "round": { "type": "integer" },
+    "source_revision": { "type": "string" },
+    "diff_hash": { "type": "string" },
+    "rules_version": { "type": "string" },
+    "verdict": { "type": "string", "enum": ["READY", "NOT_READY"] },
+    "summary": { "type": "string" },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "severity": { "type": "string", "enum": ["blocker", "major", "minor"] },
+          "rule": { "type": "string" },
+          "file": { "type": "string" },
+          "line": { "type": "integer" },
+          "claim": { "type": "string" },
+          "evidence": { "type": "string" },
+          "recommendation": { "type": "string" },
+          "owner": { "type": "string", "enum": ["domain-builder", "data-builder", "ui-builder", "feature-integrator", "user"] },
+          "confidence": { "type": "string", "enum": ["high", "medium", "low"] }
+        },
+        "required": ["id", "severity", "rule", "file", "line", "claim", "evidence", "recommendation", "owner", "confidence"],
+        "additionalProperties": false
+      }
+    },
+    "responses_to_previous": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "status": { "type": "string", "enum": ["closed", "still_open", "reopened"] },
+          "note": { "type": "string" }
+        },
+        "required": ["id", "status", "note"],
+        "additionalProperties": false
+      }
+    },
+    "open_questions": { "type": "array", "items": { "type": "string" } },
+    "checks_run": { "type": "array", "items": { "type": "string" } },
+    "limitations": { "type": "array", "items": { "type": "string" } }
+  },
+  "required": ["run_id", "round", "source_revision", "diff_hash", "rules_version", "verdict", "summary", "findings", "responses_to_previous", "open_questions", "checks_run", "limitations"],
+  "additionalProperties": false
+}
