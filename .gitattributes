@@ -1,0 +1,2 @@
+# Shell scripts run under bash (the layer guard hook, install-pack.sh): keep LF on every checkout.
+*.sh text eol=lf
