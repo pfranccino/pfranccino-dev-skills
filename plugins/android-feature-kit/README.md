@@ -2,6 +2,8 @@
 
 Agent skills for Claude Code to build an Android feature module layer by layer: navigation, presentation, domain, data, Room and DataStore. On top of the skills, the kit has agents that split the work by layer, two skills that the main conversation uses to coordinate them (`develop` and `analyze`), hooks that keep each agent inside its layer, and check scripts that summarize Gradle output.
 
+A step-by-step guide in Spanish, with usage examples, is in [GUIA.md](GUIA.md).
+
 The kit works together with a selection of Google's official Android skills. This document says where every skill comes from:
 
 1. [Skills in this kit](#1-skills-in-this-kit): bundled in this plugin.
@@ -365,7 +367,7 @@ Every option has a dry run: `-DryRun` / `--dry-run`.
 
 ## Update
 
-- Kit skills: `/plugin marketplace update pfranccino-dev-skills` in Claude Code. If you copied them into an app, run the script again.
+- The plugin: in `/plugin`, open `android-feature-kit` on the **Installed** tab and choose **Update now**, or run `claude plugin update android-feature-kit@pfranccino-dev-skills` in a shell. Then run `/reload-plugins` or restart Claude Code. `/plugin marketplace update pfranccino-dev-skills` only refreshes the listing. If you copied the kit's skills into an app, run the script again.
 - Official skills: `android skills update --all --agent=claude,codex`. Add `--project=<app>` if you installed them into an app.
 
 ## Changing a skill
