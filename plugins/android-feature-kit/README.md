@@ -72,6 +72,73 @@ It is a guardrail, not a sandbox. It blocks the usual ways an agent writes files
 
 Codex plugins do not ship agents, so in Codex `$develop` runs the same steps itself, one layer at a time. Codex is optional in Claude Code: when the `codex` command is installed, it reviews the change in a read-only process, with finding IDs and resumed rounds; otherwise `android-reviewer` does. Each round is tied to the exact change by `skills/develop/references/review_target.py` (the commit plus a hash of the staged, unstaged and untracked changes), and a READY verdict counts only while that hash still matches.
 
+## How the kit decides
+
+The kit makes two kinds of decisions. While a task runs, `develop` applies fixed rules: which agents to call, whether to write a brief, what to ask you, which model to use, when to escalate and when to accept a review. Behind those rules are design decisions about how the kit is built. Both are written down here, so you can predict what the flow will do and change a rule on purpose.
+
+You decide what the code cannot: behavior, scope, external contracts and every product question. The kit never answers those for you.
+
+### While a task runs
+
+**Which agents.** `develop` reads just enough to plan (`settings.gradle.kts`, the module's package layout, `git status`, the ticket) and calls only the agents the plan needs:
+
+- A bug in one layer calls only that layer's agent.
+- When the contract changes (models, errors, repository interfaces, use case signatures), `domain-builder` runs first, and its `CONTRACT_CHANGES` is what the others build against.
+- `data-builder` and `ui-builder` run in parallel when both are needed.
+- `feature-integrator` runs only when an agent reported changes outside the layers (`OUTSIDE_MODULE`) or new dependencies (`DEPENDENCIES`).
+
+**Whether to write a brief.** A task gets a brief when its plan creates or changes any of these:
+
+1. a feature module that is not yet in `settings.gradle.kts`;
+2. a new screen or destination in the graph;
+3. a new endpoint, entity or table;
+4. what the user sees of something that exists: offline or cache behavior, how errors show, navigation exits, tracking events.
+
+Bugs whose expected behavior is already clear, refactors and visual tweaks get no brief. A bug whose expected behavior is ambiguous gets no brief either, but your decision is written down before anyone implements it. When the rule does not settle it, `develop` asks you once. A ticket with acceptance criteria is the brief. Without one, the brief goes in `docs/features/<feature>/<task-id>.md` and holds only the goal, observable acceptance criteria, open decisions and the contracts that apply.
+
+**What to ask you.** Agents take conventions from one or two files in the same package of the module, or of a neighboring feature. Naming and structure the code already shows are never questions. What the code cannot answer (behavior, offline handling, scope, the endpoint, the events) is asked in one round. Subagents cannot ask you directly, so an agent that needs a decision stops with `STATUS: blocked` and the question, `develop` asks you, and the same agent resumes with its context.
+
+**Which model.**
+
+| Role | Model | Changes when |
+| :--- | :--- | :--- |
+| `domain-builder`, `ui-builder`, `feature-integrator`, `android-reviewer` | Sonnet | Never |
+| `data-builder` | Haiku | Sonnet when the plan includes a Room migration or schema change, sync or refresh policy, conflict resolution or encryption; when the agent replies `ESCALATE_TIER: yes`; or after two failures on the same task |
+| `build-doctor`, `test-analyst` | Haiku | Never |
+| `android-architect` | Opus | Called only on escalation |
+
+**When to escalate.** `android-architect` is called when the same error survives two fixes, when a diagnosis says `ESCALATE`, when a review finding is a design problem, or when two agents need contradictory contracts. A missing product decision goes to you, not to a larger model.
+
+**Where each agent may write.** Before delegating, `develop` writes the task's feature modules to `build/android-feature-kit/scope.json`. The layer guard then holds each agent to it:
+
+| Agent | May write |
+| :--- | :--- |
+| `domain-builder`, `data-builder`, `ui-builder` | Their own layer's packages (and, for `ui-builder`, resources), only inside the scoped modules |
+| `feature-integrator` | Anywhere in the project except the scoped modules' `src/`, apart from their `AndroidManifest.xml` files; nothing at all without the scope file |
+| `build-doctor`, `test-analyst`, `android-reviewer`, `android-architect` | Nothing |
+
+**When a review counts.** Codex reviews when it is installed, and `android-reviewer` reviews otherwise. Every round carries the change's identity: a run id, the round, the commit, a hash of the staged, unstaged and untracked changes, and the plugin version. `develop` accepts READY only if the answer repeats that identity and the commit and hash still match the code. The review stops at READY with passing checks, or after three rounds. A finding disputed twice goes to you.
+
+### Why the kit is built this way
+
+These decisions come from a design debate between the maintainer, Claude and Codex in November 2026. The maintainer made the final call on each one.
+
+| Decision | Reason | Considered instead |
+| :--- | :--- | :--- |
+| One plugin with two entry points | Whether a task needs a brief depends on the task, and whether it writes depends on the agent's tools; neither follows a plugin boundary. The reviewer needs the same rules the builders follow. | One plugin to develop and one to analyze |
+| The orchestrator is a skill in the main session | Subagents cannot ask the user questions, and the orchestrator is the one that has to. | An orchestrator agent |
+| Layer agents, called only when needed | Each agent loads only its own skill, so a bug in one layer pays for one skill instead of all of them. | One implementer that loads every skill |
+| The domain contract goes first | Data and UI build in parallel against code that compiles, not against a document. | A spec document as the handoff |
+| A brief only when behavior is created or changed | A bug fix or an explanation needs no spec, and a ticket with acceptance criteria already is one. | A spec for every task, or none at all |
+| Data runs on Haiku by default | Most data work is routine: data sources, repository implementations, mappers. The risky cases move to Sonnet by rule. | Sonnet for all data work |
+| Rules with stable IDs in `references/` | A reviewer reads only the rules of the layers a change touches, and every finding names the rule it breaks. | Reviewers reading every full skill |
+| The layer guard is a plugin hook | Plugin agents ignore hooks in their own frontmatter, and a plugin hook sees which agent made each call. | Hooks declared per agent |
+| The app repository's checks are the real boundary | The hook is a guardrail: Gradle runs the project's own build logic, and Codex hooks cannot tell agents apart. | Relying on the hook alone |
+| Codex is an optional reviewer | Not every developer has Codex, and a reviewer from another model family catches mistakes the author's model misses. | Making Codex required |
+| Check scripts live in the app repository | Agents, people and CI read the same short summaries of Gradle and test output. | Each agent reading raw logs |
+| Your own tools are used as they are | android-module-map and the dependency tools keep their logic in their own repositories; the kit calls them when they are installed and never re-implements them. | Copying their logic into the kit |
+| No model router | Each role has a fixed model, and the only routing left (data on Haiku or Sonnet) follows written rules. | A separate model that picks the model per task |
+
 ## 1. Skills in this kit
 
 | Skill | Use it for |
