@@ -1,6 +1,6 @@
 # Android Feature Kit
 
-Agent skills for Claude Code and Codex to build an Android feature module layer by layer: navigation, presentation, domain, data, Room and DataStore.
+Agent skills for Claude Code and Codex to build an Android feature module layer by layer: navigation, presentation, domain, data, Room and DataStore. On top of the skills, the kit has agents that split the work by layer, an orchestrator, a read-only analysis flow, a hook that keeps each agent inside its layer, and check scripts that summarize Gradle output.
 
 The kit works together with a selection of Google's official Android skills. This document says where every skill comes from:
 
@@ -8,10 +8,76 @@ The kit works together with a selection of Google's official Android skills. Thi
 2. [Official Android skills](#2-official-android-skills): from Google, installed with Android CLI, not bundled.
 3. [Work from other authors](#3-work-from-other-authors): what was adapted, what informed an idea, what is a candidate and what was not adopted.
 
+## How the kit works
+
+There are two entry points, and both run only when you call them:
+
+- `/android-feature-kit:develop` builds or changes code in a feature module. The main session plans the task, asks you what the code cannot answer, writes a short brief when the task creates or changes behavior, and delegates each layer to its agent.
+- `/android-feature-kit:analyze` searches, explains, diagnoses and reviews, and edits nothing.
+
+The six layer skills still work on their own. For a small change, ask for it directly and the matching skill loads, without the flow.
+
+```mermaid
+flowchart TB
+  U["You: ask and decide"] --> DEV["/develop: orchestrator in the main session"]
+  U --> AN["/analyze: read-only"]
+  DEV -->|"contract first"| DOM["domain-builder"]
+  DEV --> DATA["data-builder"]
+  DEV --> UI["ui-builder"]
+  DEV -->|"changes outside the layers"| INT["feature-integrator"]
+  DEV --> REV["Codex, or android-reviewer"]
+  DEV -.->|"failures"| DIAG["build-doctor, test-analyst"]
+  DEV -.->|"escalation"| ARCH["android-architect"]
+  AN --> DIAG
+  AN --> REV
+  AN --> ARCH
+  DOM & DATA & UI & INT --> CHECKS["tools/agent-checks in the app repository"]
+  DIAG --> CHECKS
+```
+
+| Agent | Writes | Model |
+| :--- | :--- | :--- |
+| `domain-builder` | The domain package; preloads `domain-layer` | Sonnet |
+| `data-builder` | The data package; preloads `data-repository`, loads `data-room` and `data-datastore` when needed | Haiku; the orchestrator runs it on Sonnet for migrations, sync or refresh policy, conflict resolution, encryption, or after two failures |
+| `ui-builder` | Presentation, the feature graph and resources; preloads `feature-ui-compose`, loads `feature-navigation-compose` when needed | Sonnet |
+| `feature-integrator` | What lies outside the layers: Gradle, the version catalog, shared providers, the app's NavHost | Sonnet |
+| `build-doctor`, `test-analyst` | Nothing; they diagnose failures and name the owner of the fix | Haiku |
+| `android-reviewer` | Nothing; it reviews against the rules when Codex is not installed | Sonnet |
+| `android-architect` | Nothing; it handles escalations | Opus |
+
+Each agent sees only the orchestrator's message, never the whole conversation. When it needs a decision, it stops and returns the question; the orchestrator asks you and resumes the same agent.
+
+A brief is written when the task creates a module, a screen, an endpoint or an entity, or changes what the user sees (offline behavior, errors, navigation exits, tracking events). A ticket with acceptance criteria is the brief. Otherwise the brief goes in `docs/features/<feature>/<task-id>.md` in the app repository.
+
+### Rules with IDs
+
+Every layer skill has `references/rules.md`: each of its rules with a stable ID (`DOM-03`, `UI-14`, `NAV-17`), plus the kit-wide `KIT-01` to `KIT-07`. Reviews cite these IDs, and a reviewer reads the rules of the layers a change touches instead of the full skills. Sections needed only in specific cases also live in `references/` and load when the task needs them: navigation migration, custom `NavType`, Room migrations, DataStore encryption.
+
+### The layer guard
+
+`hooks/claude-hooks.json` runs `hooks/layer_guard.py` before every edit and shell command in Claude Code. It acts only on the kit's agents:
+
+- Each layer agent writes only inside its layer's packages; the integrator writes outside the feature modules' sources, plus their manifests; the read-only agents write nothing. Paths are resolved first, so `..` and paths outside the project are blocked.
+- Their shell commands must be the Gradle wrapper, read-only git without write or exec options, read-only file tools, Android CLI queries or the kit's check scripts, with no redirection to files, command substitution or PowerShell script blocks.
+
+Before delegating, `develop` writes the task's feature modules to `build/android-feature-kit/scope.json`. With it, the layer agents write only inside those modules, and the integrator only outside their `src/` folders, except their `AndroidManifest.xml` files; without it, the integrator writes nothing. A project can replace the layer patterns in `.claude/android-feature-kit.json` (see the docstring of `layer_guard.py`). The hook needs Python 3.8 or later; without Python it lets calls through.
+
+It is a guardrail, not a sandbox. It blocks the usual ways an agent writes files through the shell, but Gradle runs the project's own build logic, and a determined command can find other ways. The app repository's own checks (pre-commit, CI) remain the boundary. Codex hooks cannot tell which agent made a call, so Codex has no equivalent.
+
+### Check scripts
+
+[`repo-tools/agent-checks`](repo-tools/agent-checks/README.md) has `gradle_summary.py` and `test_summary.py`. They turn Gradle output and JUnit reports into a short JSON summary that agents, people and CI read the same way, and keep the raw log as evidence. They belong in the app repository at `tools/agent-checks/`; the install script copies them there with `--with-repo-tools`.
+
+### Codex
+
+Codex plugins do not ship agents, so in Codex `$develop` runs the same steps itself, one layer at a time. Codex is optional in Claude Code: when the `codex` command is installed, it reviews the change in a read-only process, with finding IDs and resumed rounds; otherwise `android-reviewer` does. Each round is tied to the exact change by `skills/develop/references/review_target.py` (the commit plus a hash of the staged, unstaged and untracked changes), and a READY verdict counts only while that hash still matches.
+
 ## 1. Skills in this kit
 
 | Skill | Use it for |
 | :--- | :--- |
+| [`develop`](skills/develop/SKILL.md) | Entry point that orchestrates the layer agents to build or change a feature (explicit only) |
+| [`analyze`](skills/analyze/SKILL.md) | Read-only entry point: search, explain, diagnose and review (explicit only) |
 | [`feature-navigation-compose`](skills/feature-navigation-compose/SKILL.md) | Feature graphs, routes, exit callbacks, results and back handling with Navigation Compose 2 type-safe routes; migrating a module to that pattern |
 | [`feature-ui-compose`](skills/feature-ui-compose/SKILL.md) | Screen contracts (UiState, UiAction, SideEffect), MVI ViewModels by interface delegation, stateful and stateless Compose screens, previews |
 | [`domain-layer`](skills/domain-layer/SKILL.md) | Pure Kotlin use cases, business rules, domain models, repository interfaces and domain errors with the project's own `Either` |
@@ -173,6 +239,10 @@ bash plugins/android-feature-kit/scripts/install-pack.sh --project ~/code/my-app
 
 This installs the official skills into the app and copies the kit's skills into `<app>/.claude/skills/` and `<app>/.agents/skills/`. Commit the result. Do not combine it with the plugin in the same project, or the agent sees every kit skill twice.
 
+The copied skills do not include the agents or the layer guard, which come only with the plugin; without them, `develop` runs the steps itself, layer by layer.
+
+To put the check scripts in the app repository, add `-WithRepoTools` / `--with-repo-tools` (with `-Project` / `--project`). Commit `tools/agent-checks/`.
+
 Every option has a dry run: `-DryRun` / `--dry-run`.
 
 ## Update
@@ -183,6 +253,8 @@ Every option has a dry run: `-DryRun` / `--dry-run`.
 ## Changing a skill
 
 - Kit skills: keep the folder name equal to the `name` in the frontmatter, record the change in [CHANGELOG.md](CHANGELOG.md), and bump `version` in `.claude-plugin/plugin.json` and `.codex-plugin/plugin.json`.
+- When a rule changes in a `SKILL.md`, change it in the skill's `references/rules.md` too. IDs are never reused.
+- Tests for the hook and the check scripts: `python -m unittest discover -s hooks/tests` from the plugin folder, and `python -m unittest discover -s tests` from `repo-tools/agent-checks`.
 - Official skills: do not edit them in place, because `android skills update` overwrites them. Copy the skill, rename it, and add it to `skills/` as a kit skill with its origin documented above.
 
 ## License

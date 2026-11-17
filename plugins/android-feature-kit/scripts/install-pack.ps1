@@ -12,6 +12,8 @@ stay updatable with `android skills update`. The list is in pack/official-skills
 - With -Project: installs them into that app repository (`--project=<app>`).
 - With -Project and -WithTeamSkills: also copies the kit's skills (skills/*) into the app:
   claude -> .claude/skills, codex -> .agents/skills. Do not combine this with the plugin.
+- With -Project and -WithRepoTools: also copies the check scripts (repo-tools/agent-checks)
+  into <app>/tools/agent-checks, where the kit's agents and CI use them.
 
 .EXAMPLE
 .\scripts\install-pack.ps1
@@ -27,13 +29,15 @@ param(
 
     [switch] $WithTeamSkills,
 
+    [switch] $WithRepoTools,
+
     [switch] $DryRun
 )
 
 $ErrorActionPreference = 'Stop'
 
-if ($WithTeamSkills -and -not $Project) {
-    throw '-WithTeamSkills needs -Project <path to the app repository>.'
+if (($WithTeamSkills -or $WithRepoTools) -and -not $Project) {
+    throw '-WithTeamSkills and -WithRepoTools need -Project <path to the app repository>.'
 }
 
 $pluginRoot = Split-Path -Parent $PSScriptRoot
@@ -103,7 +107,19 @@ if ($WithTeamSkills) {
     }
 }
 
+# 3. Check scripts copied into the app repository
+if ($WithRepoTools) {
+    $toolsSource = Join-Path $pluginRoot 'repo-tools/agent-checks'
+    $toolsTarget = Join-Path $projectPath 'tools/agent-checks'
+    Invoke-Step "copy repo-tools/agent-checks -> $toolsTarget" {
+        New-Item -ItemType Directory -Force -Path $toolsTarget | Out-Null
+        Get-ChildItem -LiteralPath $toolsSource -File |
+            Where-Object { $_.Extension -in '.py', '.md' } |
+            Copy-Item -Destination $toolsTarget -Force
+    }
+}
+
 $scope = if ($projectPath) { $projectPath } else { 'global (this machine)' }
 Write-Host ''
-Write-Host "Done. Official skills: $($officialSkills.Count), scope: $scope. Kit skills copied: $(if ($WithTeamSkills) { $teamSkillDirs.Count } else { 'no' })."
+Write-Host "Done. Official skills: $($officialSkills.Count), scope: $scope. Kit skills copied: $(if ($WithTeamSkills) { $teamSkillDirs.Count } else { 'no' }). Check scripts: $(if ($WithRepoTools) { 'tools/agent-checks' } else { 'no' })."
 Write-Host "Update the official skills later with: android skills update --all --agent=$agentList$(if ($projectPath) { " --project=$projectPath" })"

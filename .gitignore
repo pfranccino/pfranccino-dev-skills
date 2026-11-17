@@ -4,3 +4,7 @@
 /diagrams/
 /impact/
 /external-calls/
+
+# Python bytecode from the plugin's hook and check-script tests.
+__pycache__/
+*.pyc
