@@ -12,7 +12,7 @@ Apply it even when the task arrives as a detailed plan or ticket: the plan says 
 ## Scope
 
 - Work in the data package of one feature module. Infer the module from the paths the user gave; ask only if more than one module fits.
-- Implement interfaces declared in the feature's domain package. If the interface does not exist yet, write it first following domain-layer.
+- Implement interfaces declared in the feature's domain package. If the interface does not exist yet, write it first following domain-layer. When you work only on the data layer (for example as the kit's `data` agent), do not write it: stop and ask for it, with the signatures you need.
 - Do not edit other modules (the shared HTTP client, the database class, app-level DI). If the work needs a change there, list it at the end under "Changes needed outside this module" with the exact snippet.
 - Follow the module's existing naming and style over the examples here.
 
@@ -156,15 +156,15 @@ internal abstract class OrderDataModule {
 
 ## Before finishing
 
-Check the code you wrote:
+Check the code you wrote. `references/rules.md` in this skill's folder lists every rule of this skill with a stable ID (REPO-01 to REPO-27, plus the kit-wide KIT-01 to KIT-07); reviews cite those IDs.
 
-- No DTO, entity, data source or network error type is visible outside the data package.
-- Every remote call goes through the network helper and returns `Either`.
-- Observation reads from local storage, refresh writes to it, and no data reaches the caller from two sources.
-- Each change operation says whether it is remote-first or local-first. Local-first changes are stored with their pending marker in one transaction, and refresh leaves pending rows alone.
-- Refreshes and mutations of the same resource share a per-resource lock. No mutation is retried automatically.
-- Every failure is mapped to a domain error with an exhaustive `when`. No cancellation is swallowed and no dispatcher is hardcoded.
-- The repository is bound to its domain interface with `@Binds`.
+- No DTO, entity, data source or network error type is visible outside the data package (REPO-04).
+- Every remote call goes through the network helper and returns `Either` (REPO-03, REPO-05).
+- Observation reads from local storage, refresh writes to it, and no data reaches the caller from two sources (REPO-09 to REPO-11).
+- Each change operation says whether it is remote-first or local-first. Local-first changes are stored with their pending marker in one transaction, and refresh leaves pending rows alone (REPO-13, REPO-14).
+- Refreshes and mutations of the same resource share a per-resource lock. No mutation is retried automatically (REPO-15, REPO-16).
+- Every failure is mapped to a domain error with an exhaustive `when`. No cancellation is swallowed and no dispatcher is hardcoded (REPO-18 to REPO-20).
+- The repository is bound to its domain interface with `@Binds` (REPO-22).
 
 Build and test the module, for example `.\gradlew.bat :feature:orders:compileDebugKotlin :feature:orders:testDebugUnitTest`, and say which checks you could not run.
 
