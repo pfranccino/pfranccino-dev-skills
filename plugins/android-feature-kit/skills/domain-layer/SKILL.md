@@ -138,13 +138,13 @@ rg -n "^import (android|androidx)\.|\.data\.|\.presentation\." <module>/src/main
 
 Adjust the package names in the pattern to the module's real ones, and confirm that each match is a real violation before changing it.
 
-Check the code you wrote:
+Check the code you wrote. `references/rules.md` in this skill's folder lists every rule of this skill with a stable ID (DOM-01 to DOM-22, plus the kit-wide KIT-01 to KIT-07); reviews cite those IDs.
 
-- No forbidden imports in the domain package.
-- Models are immutable and have no framework annotations.
-- Repository interfaces use domain types only. Observation returns `Flow`; changes and refreshes return `Either`.
-- Errors are a sealed type named by business meaning.
-- Use cases have one `invoke`, no state, no hardcoded dispatcher and no swallowed cancellation, and their rules are covered by tests.
+- No forbidden imports in the domain package (DOM-03).
+- Models are immutable and have no framework annotations (DOM-05).
+- Repository interfaces use domain types only. Observation returns `Flow`; changes and refreshes return `Either` (DOM-07 to DOM-10).
+- Errors are a sealed type named by business meaning (DOM-11).
+- Use cases have one `invoke`, no state, no hardcoded dispatcher and no swallowed cancellation, and their rules are covered by tests (DOM-12 to DOM-15, DOM-19).
 
 Build and test the module, for example `.\gradlew.bat :feature:orders:testDebugUnitTest`, and say which checks you could not run.
 

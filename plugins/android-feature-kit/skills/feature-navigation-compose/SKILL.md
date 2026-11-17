@@ -132,12 +132,7 @@ Never pass domain entities (`User`, `Order`) or large objects. Pass the id and l
 
 ## Custom NavType
 
-Only for a small immutable value object that identifies the destination (filters, a date range, an open mode). Not for entities.
-
-- If the project already has a `NavType` for the type, reuse it. If the module has another custom `NavType`, follow its implementation.
-- Register it in the `typeMap` of every destination that uses the type, through a shared `internal val` in the navigation file. A missing registration fails at runtime. The destination's ViewModel passes the same map to `savedStateHandle.toRoute<Route>(typeMap = ...)`, which is why the map is `internal` and not `private`.
-- `serializeAsValue` must escape with `Uri.encode`.
-- Add a test that navigates for real with data containing `/`, `?`, `&` and `%`. A direct `parseValue(serializeAsValue(x))` round trip does not detect a missing encode.
+Only for a small immutable value object that identifies the destination (filters, a date range, an open mode), never for entities. Before writing or changing one, read `references/custom-navtype.md` in this skill's folder: registration in every `typeMap`, encoding with `Uri.encode`, and the test it needs.
 
 ## Screens
 
@@ -205,52 +200,23 @@ New destination in an existing feature:
 
 ## Migrating existing navigation in a module
 
-Use when the module already has navigation (string routes, public destination routes, screens that receive `NavController`, an Activity or Fragment per screen, direct navigation to another feature) and the task is to move it to the closed graph pattern above.
-
-The scope rule is the point of this mode: one module per task, internals only, so each migration is one small change that compiles and ships on its own.
-
-- One module per task. If the user names several, handle them one at a time, each as a self-contained change with its own report.
-- Nothing outside the module is edited, and nothing outside may stop compiling or change behavior because of this change.
-- Migrate navigation only. Do not redesign UI, business logic, ViewModels or dependency injection, and do not rename things navigation does not require.
-- If the module holds several independent flows and the whole is too large for one change, migrate one flow, and say which ones remain.
-
-Steps:
-
-1. **Inventory before editing.** List every destination, how it is reached (start, from inside, from outside the module), its arguments, every place the module navigates to another module, the current back behavior, and every public navigation symbol. Search other modules read-only to find which of those public symbols are used from outside. Prefer a semantic search: `android studio find-usages --short <Symbol>` (Android CLI with the project open in Android Studio; add `--context-file <file>` for symbols with common names) or the LSP find-references tool when available. Fall back to searching imports of the symbol, and say which method you used.
-2. **Design the target surface.** The graph marker, the `internal` routes, and the graph extension signature with its configuration and exit callbacks. Every navigation to another module becomes an exit callback named by what happened.
-3. **Migrate the internals.** Type-safe `internal` routes, destinations registered in the feature graph, stateful and stateless screen pairs without `NavController`, side effects mapped to callbacks in the screen.
-4. **Keep consumers working with bridges.** See below.
-5. **Preserve behavior.** Same start destination, same back stack after each step of the flow, same back behavior. If something must change, say it explicitly.
-6. **Verify.** Build the module and run its existing tests when the environment allows it. If it cannot be run, say so.
-
-Bridges, so that no consumer has to change in the same task:
-
-- A public entry point that is used from outside (a public function, a public route, an Activity, a Fragment) stays. Turn it into a thin bridge that delegates to the new graph, and mark it `@Deprecated` with a message naming its replacement. Never delete a public symbol that has usages outside the module.
-- A public symbol with no usages outside the module becomes `internal` or is removed.
-- Where the module navigated directly to another module: move the call out of screens and ViewModels into an exit callback. If the module owns the host that mounts the graph, wire the callback there to the same call as before. If the host is outside the module, give the callback a temporary default that keeps the previous behavior, mark it with a `TODO`, and report it.
-- Existing data passing that breaks the rules but still works (a shared ViewModel, a loose `savedStateHandle` key) stays unless navigation cannot be migrated without changing it. Report it as follow-up.
-
-A migration report adds, to the usual closing report:
-
-- The inventory, as a short table.
-- Each bridge left in place, with what must happen outside the module before it can be removed.
-- Behavior differences, or "None".
+Use this mode when the module already has navigation that breaks the pattern above (string routes, public destination routes, screens that receive `NavController`, an Activity or Fragment per screen, direct navigation to another feature) and the task is to move it to the closed graph. Before editing anything, read `references/migration.md` in this skill's folder: it holds the scope rule (one module per task, internals only), the steps, the bridges that keep consumers compiling, and what the migration report adds.
 
 ## Before finishing
 
-Check the code you wrote:
+Check the code you wrote. `references/rules.md` in this skill's folder lists every rule of this skill with a stable ID (NAV-01 to NAV-32, plus the kit-wide KIT-01 to KIT-07); reviews cite those IDs.
 
-- Destinations `internal`; the marker is the only public route.
-- No import of another feature's routes, marker or extensions.
-- Exits are callbacks in the signature, named by the fact.
-- Graph takes `NavController`; screens take neither `NavController` nor `NavBackStackEntry`.
-- Arguments are ids or allowed data; no secrets, no entities.
-- `toRoute()` once per destination; `launchSingleTop` where a double tap could duplicate.
-- Custom `NavType` registered in every destination's `typeMap`.
-- Each screen resolves its own ViewModel; `@Preview` targets the stateless composable.
-- No `deepLinks` declared in `composable<>`.
-- No file outside the given module was modified.
-- In a migration, the `@Deprecated` bridges and temporary `TODO` defaults described in "Bridges" are allowed exceptions to the checks above. List them separately in the report.
+- Destinations `internal`; the marker is the only public route (NAV-04).
+- No import of another feature's routes, marker or extensions (NAV-06).
+- Exits are callbacks in the signature, named by the fact (NAV-14).
+- Graph takes `NavController`; screens take neither `NavController` nor `NavBackStackEntry` (NAV-07, NAV-21).
+- Arguments are ids or allowed data; no secrets, no entities (NAV-19).
+- `toRoute()` once per destination; `launchSingleTop` where a double tap could duplicate (NAV-08, NAV-09).
+- Custom `NavType` registered in every destination's `typeMap` (NAV-20).
+- Each screen resolves its own ViewModel; `@Preview` targets the stateless composable (NAV-18, NAV-21).
+- No `deepLinks` declared in `composable<>` (NAV-11).
+- No file outside the given module was modified (NAV-02).
+- In a migration, the `@Deprecated` bridges and temporary `TODO` defaults described under "Bridges" in `references/migration.md` are allowed exceptions to the checks above (NAV-31). List them separately in the report (NAV-32).
 
 Then verify:
 

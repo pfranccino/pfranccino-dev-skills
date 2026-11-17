@@ -105,62 +105,30 @@ internal interface OrderDao {
 
 ## Schema and migrations
 
-Any change to an entity (new table, column, index, type or name) changes the schema:
+Any change to an entity (new table, column, index, type or name) changes the schema. Before making one, or changing the `@Database` class or its version, read `references/migrations.md` in this skill's folder: version bump, automatic or manual migration, schema export and the migration test.
 
-1. Bump `version` in `@Database`.
-2. Add the migration:
-   - `AutoMigration(from = N, to = N + 1)` in `@Database(autoMigrations = [...])` for additive changes: a new table, a new nullable column, a column with a default value. Renames and deletions need an `AutoMigrationSpec` (`@RenameColumn`, `@DeleteColumn`, `@RenameTable`, `@DeleteTable`).
-   - A manual `Migration(N, N + 1)` for anything Room cannot infer, such as transforming data or splitting a table.
-3. Generate the schema JSON for the new version and include it in the change.
-4. Write the migration test.
+Three rules hold for every Room task:
 
-```kotlin
-internal val MIGRATION_3_4 = object : Migration(3, 4) {
-    override suspend fun migrate(connection: SQLiteConnection) {
-        connection.execSQL("ALTER TABLE orders ADD COLUMN note TEXT")
-    }
-}
-```
-
-- `exportSchema` stays `true` and schema files are committed. They are the only record of what users have on their devices, and auto-migrations and migration tests read them.
-- Never use `fallbackToDestructiveMigration()` in builds that reach users: it deletes their data at the first missing migration. If a destructive path is really intended for specific old versions, use `fallbackToDestructiveMigrationFrom(...)` for those versions only and say so in the report.
+- `exportSchema` stays `true` and schema files are committed.
+- Never use `fallbackToDestructiveMigration()` in builds that reach users.
 - Never edit a migration or a schema file that has already shipped. Add a new version instead.
 
 ## Tests
 
 - DAO tests against an in-memory database built with the same driver: insert, observe, upsert and delete, and check that `Flow` queries emit after each write.
-- Migration tests with `MigrationTestHelper` (`room3-testing` on Room 3), usually as instrumented tests. Create the database at the old version, insert realistic rows, run the migrations to the new version and assert that the rows survived. Write one test per migration, plus one from the oldest supported version to the latest.
-
-```kotlin
-@Test
-fun migrate3To4_keepsOrders() = runTest {
-    helper.createDatabase(3).use { connection ->
-        connection.execSQL(
-            "INSERT INTO orders (id, customer_id, status, updated_at) VALUES ('1', 'c1', 'OPEN', 0)"
-        )
-    }
-    helper.runMigrationsAndValidate(4, listOf(MIGRATION_3_4)).use { connection ->
-        connection.prepare("SELECT status, note FROM orders WHERE id = '1'").use { statement ->
-            assertTrue(statement.step())
-            assertEquals("OPEN", statement.getText(0))
-            assertTrue(statement.isNull(1))
-        }
-    }
-}
-```
-
-Build `helper` with the project's database class, the same driver and the schema location, using the `MigrationTestHelper` constructor that matches the test type.
+- Migration tests: see `references/migrations.md`.
 
 ## Before finishing
 
-Check the code you wrote:
+Check the code you wrote. `references/rules.md` in this skill's folder lists every rule of this skill with a stable ID (ROOM-01 to ROOM-25, plus the kit-wide KIT-01 to KIT-07); reviews cite those IDs.
 
-- The right Room major, with no mixed artifacts or imports.
-- Entities and DAOs never leave the data package, and are `internal` when the database is in this module.
-- Explicit table and column names; indices on filtered and foreign key columns.
-- Version bumped, migration added, schema file generated and included, migration test written.
-- No `fallbackToDestructiveMigration()`.
-- Changes to the `@Database` class or build files outside the module are in the report with their snippets.
+- The right Room major, with no mixed artifacts or imports (ROOM-03).
+- Entities and DAOs never leave the data package, and are `internal` when the database is in this module (ROOM-02, ROOM-07).
+- Explicit table and column names; indices on filtered and foreign key columns (ROOM-08, ROOM-10).
+- Version bumped, migration added, schema file generated and included, migration test written (ROOM-17, ROOM-22).
+- No migration or schema file that has already shipped was edited (ROOM-20).
+- No `fallbackToDestructiveMigration()` (ROOM-19).
+- Changes to the `@Database` class or build files outside the module are in the report with their snippets (ROOM-02, KIT-04).
 
 Build and run the tests: `testDebugUnitTest` for DAO tests, and `connectedDebugAndroidTest` for migration tests when a device or Gradle Managed Device is available. Say which checks you could not run.
 

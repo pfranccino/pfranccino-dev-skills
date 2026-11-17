@@ -89,7 +89,7 @@ fun provideAppSettingsStore(
         .build()
 ```
 
-This store holds nothing sensitive. A model with user identifiers, tokens or session data uses the encrypted serializer described below.
+This store holds nothing sensitive. A model with user identifiers, tokens or session data uses the encrypted serializer described in `references/encryption.md`.
 
 On DataStore 1.2 or earlier, use `DataStoreFactory.create(serializer, corruptionHandler, migrations, scope) { file }` with the same application scope.
 
@@ -140,33 +140,7 @@ When replacing `SharedPreferences`, pass `SharedPreferencesMigration(context, "<
 
 ## Encryption with datastore-tink
 
-For sensitive values, `androidx.datastore:datastore-tink` wraps an existing serializer:
-
-```kotlin
-AeadConfig.register()
-
-val aead = AndroidKeysetManager.Builder()
-    .withSharedPref(context, "session_keyset", "session_keyset_prefs")
-    .withKeyTemplate(KeyTemplate.createFrom(PredefinedAeadParameters.AES256_GCM))
-    .withMasterKeyUri("android-keystore://session_master_key")
-    .build()
-    .keysetHandle
-    .getPrimitive(RegistryConfiguration.get(), Aead::class.java)
-
-val serializer = AeadSerializer(
-    aead = aead,
-    wrappedSerializer = SessionSerializer,
-    associatedData = "session.json".encodeToByteArray(),
-)
-```
-
-`SessionSerializer` is a serializer built like `AppSettingsSerializer`, for the session model.
-
-- Use this serializer in place of the plain one when building the store.
-- `associatedData` is unique per file, so one encrypted file cannot be swapped for another.
-- Decryption failures arrive as `CorruptionException`, so the corruption handler decides what happens. For a session, that usually means resetting to defaults and asking the user to sign in again.
-- Building the keyset touches disk and the Keystore: do it once, inside the singleton provider.
-- Exclude the encrypted file and the keyset preferences from Auto Backup and device transfer. The Keystore key does not travel with a backup, so restored ciphertext cannot be decrypted; treat a restore as signed out. The backup and data extraction rules live in the app module: put the snippet in the report.
+Sensitive values (tokens, identifiers of the user, session data) use a typed store whose serializer is wrapped with `datastore-tink`. Before writing or changing one, read `references/encryption.md` in this skill's folder: the keyset, `AeadSerializer`, decryption failures and the backup exclusion.
 
 ## Tests
 
@@ -175,13 +149,13 @@ val serializer = AeadSerializer(
 
 ## Before finishing
 
-Check the code you wrote:
+Check the code you wrote. `references/rules.md` in this skill's folder lists every rule of this skill with a stable ID (DS-01 to DS-22, plus the kit-wide KIT-01 to KIT-07); reviews cite those IDs.
 
-- The storage choice fits the data, and the reply says why.
-- One instance per file, `@Singleton`, application scope, and a qualifier when several stores share a type.
-- Reads fall back only on `IOException`, through `retryWhen` so observation continues. Typed serializers throw `CorruptionException`, and each store has a corruption policy chosen for its data.
-- No `runBlocking`, no `viewModelScope`, and no keys or stored types outside the data package.
-- Sensitive values are encrypted with `datastore-tink`, and the encrypted files are excluded from backup.
+- The storage choice fits the data, and the reply says why (DS-03).
+- One instance per file, `@Singleton`, application scope, and a qualifier when several stores share a type (DS-02, DS-04, DS-05, DS-10).
+- Reads fall back only on `IOException`, through `retryWhen` so observation continues. Typed serializers throw `CorruptionException`, and each store has a corruption policy chosen for its data (DS-07, DS-08).
+- No `runBlocking`, no `viewModelScope`, and no keys or stored types outside the data package (DS-05, DS-09, DS-11, DS-13).
+- Sensitive values are encrypted with `datastore-tink`, and the encrypted files are excluded from backup (DS-03, DS-16, DS-17).
 
 Build and test the module, for example `.\gradlew.bat :feature:orders:testDebugUnitTest`, and say which checks you could not run.
 

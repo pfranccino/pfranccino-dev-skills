@@ -208,16 +208,16 @@ One preview per meaningful state of `XScreenContent`: content, loading, empty an
 
 ## Before finishing
 
-Check the code you wrote:
+Check the code you wrote. `references/rules.md` in this skill's folder lists every rule of this skill with a stable ID (UI-01 to UI-36, plus the kit-wide KIT-01 to KIT-07); reviews cite those IDs.
 
-- Presentation imports nothing from the `data` package, and the ViewModel depends on use cases only.
-- Contract types, ViewModel and screens are `internal`. No `when` over actions or effects has an `else` branch.
-- State changes and effects go through the MVI delegate.
-- No work starts in the constructor, `init` or property initializers. On screens that load data, the first load starts on `OnStart` and runs once per ViewModel; `OnRetryClick` can load again.
-- Every `Either` result is handled and no `CancellationException` is swallowed.
-- Stateful screen: `hiltViewModel()`, `OnStart` sent from `LaunchedEffect(viewModel)` if the screen loads data, `collectAsStateWithLifecycle()`, effects mapped to callbacks without defaults. Stateless screen: state and `onAction` only.
-- Text from resources, design system components, accessibility labels.
-- Previews cover each state of the stateless screen.
+- Presentation imports nothing from the `data` package, and the ViewModel depends on use cases only (UI-02, UI-11).
+- Contract types, ViewModel and screens are `internal`. No `when` over actions or effects has an `else` branch (UI-04, UI-10, UI-12, UI-20).
+- State changes and effects go through the MVI delegate (UI-10).
+- No work starts in the constructor, `init` or property initializers. On screens that load data, the first load starts on `OnStart` and runs once per ViewModel; `OnRetryClick` can load again (UI-13 to UI-15).
+- Every `Either` result is handled and no `CancellationException` is swallowed (UI-16, UI-17).
+- Stateful screen: `hiltViewModel()`, `OnStart` sent from `LaunchedEffect(viewModel)` if the screen loads data, `collectAsStateWithLifecycle()`, effects mapped to callbacks without defaults. Stateless screen: state and `onAction` only (UI-21, UI-22).
+- Text from resources, design system components, accessibility labels (UI-26 to UI-28).
+- Previews cover each state of the stateless screen (UI-32).
 
 Then verify:
 
