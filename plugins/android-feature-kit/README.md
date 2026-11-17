@@ -2,7 +2,7 @@
 
 Agent skills for Claude Code to build an Android feature module layer by layer: navigation, presentation, domain, data, Room and DataStore. On top of the skills, the kit has agents that split the work by layer, two skills that the main conversation uses to coordinate them (`develop` and `analyze`), hooks that keep each agent inside its layer, and check scripts that summarize Gradle output.
 
-A step-by-step guide in Spanish, with usage examples, is in [GUIA.md](GUIA.md). The same guide as a page, with the agent types and the flow, is [GUIA.html](GUIA.html): download it and open it in a browser.
+A step-by-step guide in Spanish, with usage examples, is in [GUIA.md](GUIA.md). The same guide as a page, with the agent types and the flow, is at https://pfranccino.github.io/pfranccino-dev-skills/ (source: [GUIA.html](GUIA.html)).
 
 The kit works together with a selection of Google's official Android skills. This document says where every skill comes from:
 

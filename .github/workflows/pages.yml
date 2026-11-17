@@ -1,0 +1,42 @@
+# Publishes the android-feature-kit usage guide (plugins/android-feature-kit/GUIA.html) as the GitHub Pages site:
+# https://pfranccino.github.io/pfranccino-dev-skills/
+# The repository's Pages source must be "GitHub Actions" (Settings > Pages).
+name: Publish the guide to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - plugins/android-feature-kit/GUIA.html
+      - .github/workflows/pages.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Build the site from the guide
+        run: |
+          mkdir -p _site
+          cp plugins/android-feature-kit/GUIA.html _site/index.html
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v5

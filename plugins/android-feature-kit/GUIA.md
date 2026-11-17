@@ -2,7 +2,7 @@
 
 Cómo instalar los agentes del kit en una app Android y cómo pedirles trabajo, con ejemplos. Vale para la versión 0.4.0 o superior del plugin.
 
-La misma guía, como página con los tipos de agentes y el flujo dibujado, está en [GUIA.html](GUIA.html). Descárgala y ábrela en el navegador.
+La misma guía, como página con los tipos de agentes y el flujo dibujado, está en https://pfranccino.github.io/pfranccino-dev-skills/ (el archivo es [GUIA.html](GUIA.html)).
 
 La idea es simple: le hablas a Claude como a un compañero de equipo. Claude decide qué parte del kit usar, te muestra un plan y no escribe código hasta que lo apruebas.
 
