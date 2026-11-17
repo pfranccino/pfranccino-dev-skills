@@ -22,6 +22,12 @@ tools, Android CLI documentation, preview and studio queries, or Python running 
 scripts from `tools/agent-checks/` or the plugin. Redirection to files, command substitution and
 PowerShell script blocks are blocked.
 
+Every session, the main one included, is blocked from writing `build/android-feature-kit/approved-plan.json`
+with the edit tools or mentioning it in a shell command: only plan_gate.py records plan approvals there. While
+`scope.json` holds another session's id, no session may write it or mention it in a shell command either: one
+kit run works in a checkout at a time, and the user releases a stale scope by deleting the file. The kit's agents
+never write in `build/android-feature-kit/`.
+
 Exit 0 lets the call run. Exit 2 blocks it, and the message on stderr is shown to the agent. This is a
 guardrail, not a sandbox: Gradle runs the project's own build logic, and the repository's pre-commit
 and CI checks are the boundary. A project can replace the layer patterns in
@@ -41,6 +47,7 @@ from pathlib import Path
 PLUGIN = "android-feature-kit"
 PLUGIN_ROOT = Path(__file__).resolve().parents[1]
 SCOPE_FILE = Path("build") / PLUGIN / "scope.json"
+APPROVED_PLAN_FILE = Path("build") / PLUGIN / "approved-plan.json"
 
 SOURCE = "**/src/*/{java,kotlin}/**"
 DEFAULT_LAYERS = {
@@ -184,6 +191,8 @@ def check_write(agent: str, file_path: str, cwd: str, project_dir: str) -> str |
     path = project_relative(file_path, cwd, project_dir)
     if path is None:
         return f"{agent} may not write outside the project ({file_path})."
+    if inside(path, normalize(SCOPE_FILE.parent.as_posix())):
+        return f"{agent} may not write the kit's own files in {SCOPE_FILE.parent.as_posix()}/."
     scope = load_scope(project_dir)
     if agent == INTEGRATOR:
         if scope is None:
@@ -397,7 +406,49 @@ def check_shell(command: str, tool: str, cwd: str, project_dir: str) -> str | No
     return None
 
 
+def real_session_id(value) -> str | None:
+    """A session id Claude Code would send; None for empty values and unexpanded placeholders."""
+    if not isinstance(value, str) or not value.strip() or any(c in value for c in "${}<>"):
+        return None
+    return value.strip()
+
+
+def scope_owner(project_dir: str) -> str | None:
+    try:
+        with open(os.path.join(project_dir, SCOPE_FILE), encoding="utf-8") as handle:
+            scope = json.load(handle)
+    except (OSError, ValueError):
+        return None
+    return real_session_id(scope.get("session_id")) if isinstance(scope, dict) else None
+
+
+def check_kit_records(event: dict, project_dir: str) -> str | None:
+    """Only plan_gate.py writes the approval record, and no session replaces another session's scope."""
+    tool = event.get("tool_name", "")
+    tool_input = event.get("tool_input") or {}
+    target, command = None, ""
+    if tool in WRITE_TOOLS:
+        file_path = tool_input.get("file_path") or tool_input.get("notebook_path") or ""
+        if file_path:
+            target = project_relative(file_path, event.get("cwd") or project_dir, project_dir)
+    elif tool in SHELL_TOOLS:
+        command = str(tool_input.get("command", "")).lower()
+    if target == normalize(APPROVED_PLAN_FILE.as_posix()) or APPROVED_PLAN_FILE.name in command:
+        return (f"Only the plan gate records plan approvals in {APPROVED_PLAN_FILE.as_posix()}, when the user "
+                "approves a plan in Plan Mode. Read it with the Read tool if you need it.")
+    if target == normalize(SCOPE_FILE.as_posix()) or SCOPE_FILE.name in command:
+        owner = scope_owner(project_dir)
+        if owner and owner != real_session_id(event.get("session_id")):
+            return (f"{SCOPE_FILE.as_posix()} belongs to another Claude session ({owner}), which may still be running "
+                    "a kit task in this checkout. Only one run works in a checkout at a time. Tell the user; if that "
+                    "run is over, the user deletes the file.")
+    return None
+
+
 def decide(event: dict, project_dir: str) -> str | None:
+    problem = check_kit_records(event, project_dir)
+    if problem:
+        return problem
     agent = kit_agent_name(event.get("agent_type"))
     if agent is None:
         return None

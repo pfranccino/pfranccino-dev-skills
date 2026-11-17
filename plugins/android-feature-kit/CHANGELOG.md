@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.4.0 (unreleased)
+
+How the kit is triggered and who decides changed. The main conversation coordinates the agents, and nothing writes code before you approve the plan.
+
+- `develop` and `analyze` load from plain requests ("add a cancel button to the order detail, with its endpoint"), not only from their commands. `/android-feature-kit:develop` and `/android-feature-kit:analyze` stay as shortcuts. Called with no task, they ask what you want and wait.
+- `develop` proposes a plan in Plan Mode (goal, modules, decisions, brief, an `Agents:` line with the model for each agent, integration, checks, reviewer and round cap) and launches no writing agent until you approve it. A decision that appears later (a contract change the plan did not include, a new dependency or version, a tier change, an escalation, another review round) is asked before it is applied. A small change in one layer is proposed without agents.
+- `analyze` proposes how it will answer, in the conversation, and asks before builds, test runs, module maps, codegraph indexes or the network.
+- `skills/develop/references/claude-md-block.md`: a block for the app repository's `CLAUDE.md` with the routing rules, the exploration approved in advance and the routine choices that are never questions. Without it, the skills propose its defaults once per session.
+- The four writing agents now say they run on a plan you approved, and stop on any choice outside the routine list, technical or product.
+- Reviewer: `android-reviewer` by default. An external reviewer is any command-line tool configured in `.claude/android-feature-kit.json` that reads the prompt on standard input and returns JSON that follows `review.schema.json`. `references/run_review.py` runs it and checks the answer and the target identity. You pick the reviewer and the round cap in the plan; having a tool installed no longer selects it. Codex works through this configuration. The rules version in a review's identity now comes from `skills/develop/references/VERSION`, so it also works with the skills copied into a repository.
+- Optional plan gate (`hooks/plan_gate.py`, off by default, `"planGate": true` in `.claude/android-feature-kit.json`): when you approve a plan in Plan Mode it records the agents and models on the plan's `Agents:` line, as approved and with your edits, and it blocks writing agents the plan does not list or that would run on another model. The layer guard blocks writes to that record. Unit-tested; not yet tested in a live session.
+- One kit run per checkout: `scope.json` now carries the session id. While it belongs to another session, no writing agent can start and no session can replace the file; you release a stale one by deleting it. The kit's agents never write in `build/android-feature-kit/`. `develop` deletes its own scope when it reports.
+- The plugin is for Claude Code only: the Codex plugin manifest, the Codex marketplace file and the skills' `agents/openai.yaml` were removed.
+
 ## 0.3.0 (unreleased)
 
 - Two entry skills, both explicit only: `develop` orchestrates layer agents to build or change a feature (plan, questions, a brief when behavior changes, delegation, integration, checks, review), and `analyze` searches, explains, diagnoses and reviews without editing.

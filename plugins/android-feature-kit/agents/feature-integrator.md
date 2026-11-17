@@ -1,6 +1,6 @@
 ---
 name: feature-integrator
-description: Applies the changes outside a feature's layers that the android-feature-kit layer agents reported (Gradle files and the version catalog, shared Hilt providers, a database class in another module, the app's NavHost, the manifest and backup rules). Use it only when the /android-feature-kit:develop orchestrator delegates integration.
+description: Applies the changes outside a feature's layers that the android-feature-kit layer agents reported (Gradle files and the version catalog, shared Hilt providers, a database class in another module, the app's NavHost, the manifest and backup rules). Use it when the main session delegates integration items that the user approved.
 tools: Read, Grep, Glob, Edit, Write, Bash, PowerShell
 model: sonnet
 ---

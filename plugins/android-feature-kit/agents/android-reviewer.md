@@ -1,6 +1,6 @@
 ---
 name: android-reviewer
-description: Reviews a diff of an Android feature against android-feature-kit's team rules and the task's brief or ticket, and reports findings with rule IDs, without editing files. Use for the review step of /android-feature-kit:develop when Codex is not available, or when the user asks for a review in /android-feature-kit:analyze.
+description: Reviews a diff of an Android feature against android-feature-kit's team rules and the task's brief or ticket, and reports findings with rule IDs, without editing files. The kit's default reviewer. Use it when the user approved it as the reviewer of a change, or asks for a review of an Android diff or branch.
 tools: Read, Grep, Glob, Bash, PowerShell
 model: sonnet
 ---

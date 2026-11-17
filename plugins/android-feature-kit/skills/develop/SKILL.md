@@ -1,112 +1,130 @@
 ---
 name: develop
-description: "Entry point of android-feature-kit for building or changing code in an Android feature module with the kit's layer agents: plans the task, asks the user what the code cannot answer, writes a short brief when the task creates or changes behavior, delegates to the domain, data and ui agents, integrates, verifies and gets the change reviewed. Runs only when the user invokes it."
-disable-model-invocation: true
+description: "Coordinates the android-feature-kit layer agents to build or change an Android feature: a new feature, screen, endpoint, entity or flow, a ticket to implement, or a change that spans the domain, data and ui layers. Proposes a plan (agents, models, brief, integration, reviewer and review rounds) for the user to approve in Plan Mode before any agent writes code. Use it when the user describes a feature or ticket to build or change, even in plain words and without naming the kit. For a small change in one layer, the layer skill alone is enough. Also for requests in Spanish such as crear una feature, implementar un ticket, agregar una pantalla con su endpoint, cambiar el flujo de un módulo."
+argument-hint: "[task, ticket link or ticket id]"
 ---
 
 # Develop
 
-You are the orchestrator of android-feature-kit. You plan, ask, delegate, integrate the results and report. You write no application code, and you do not load the layer skills (domain-layer, data-repository, data-room, data-datastore, feature-ui-compose, feature-navigation-compose) yourself: each agent loads its own, and loading them here would pay for them twice. The only files you write are the brief and the review prompts.
+You coordinate the kit's agents from the main conversation. You plan, ask, delegate, integrate the results and report. You write no application code, and you do not load the layer skills (domain-layer, data-repository, data-room, data-datastore, feature-ui-compose, feature-navigation-compose) yourself: each agent loads its own. The only files you write are the brief, the scope file and the review prompts. The one exception is a small change that the user approved without agents (section 3).
 
-The agents, with their tiers:
+The user approves the plan before any agent writes code. You propose; you never decide on your own what the user has not approved.
 
-| Agent | Writes | Model |
-| :--- | :--- | :--- |
-| `android-feature-kit:domain-builder` | the domain package: use cases, models, repository interfaces, errors | standard |
-| `android-feature-kit:data-builder` | the data package: repositories, API, DTOs, mappers, Room, DataStore, data Hilt bindings | cheap, standard on demand |
-| `android-feature-kit:ui-builder` | presentation, the feature's navigation graph, resources | standard |
-| `android-feature-kit:feature-integrator` | what lies outside the layers: Gradle, version catalog, shared providers, the app's NavHost | standard |
-| `android-feature-kit:build-doctor`, `test-analyst` | nothing; they diagnose failures | cheap |
-| `android-feature-kit:android-reviewer` | nothing; it reviews when Codex is not installed | standard |
-| `android-feature-kit:android-architect` | nothing; escalations only | advanced |
+Task from the invocation: $ARGUMENTS
 
-A hook keeps each agent inside its layer and stops their shell commands from writing files. The repository's pre-commit and CI checks remain the real boundary.
+## 0. What to work on
 
-## 1. Understand the task
+If the line above names a task, a ticket or a link, that is the task. If it is empty or shows a placeholder, ask and wait for the answer before anything else: when the conversation already states a request, ask whether that is the task to plan; otherwise ask what the user wants to build or change. Do not explore, plan or launch anything until the user has named or confirmed the task.
 
-Read only what you need to plan: `settings.gradle.kts` (or `.gradle`) to find the module, the module's package layout with Glob, `git status`, and the ticket if the user gave one. Do not read the layers' code in depth; the agents do that.
+## 1. The rules this repository set
 
-Decide which agents the task needs and what each one creates or changes. A bug in one layer needs only that layer's agent. A new screen on an existing use case may need only `ui-builder`. Call `domain-builder` first whenever the contract (models, errors, repository interfaces, use case signatures) has to change.
+Look for the android-feature-kit block in the repository's `CLAUDE.md` (between `<!-- android-feature-kit:start -->` and `<!-- android-feature-kit:end -->`). It holds what the user approved once for every task:
 
-## 2. Brief or not
+- **Exploration approved in advance**: what you may read and run without asking while you plan.
+- **Routine choices**: what follows from the code and is never a question.
 
-The task needs a brief when the plan creates or changes any of these:
+When the block is missing, propose the defaults from `${CLAUDE_SKILL_DIR}/references/claude-md-block.md` to the user once in this session, wait for the answer, and use what they approve. Mention that the block can go in `CLAUDE.md` so the question is not repeated.
+
+Exploration that goes beyond the approved limits (a Gradle build, a module map or codegraph generation, anything that writes output, the network, a discovery agent the block does not list) is asked first, with what it would run and why.
+
+## 2. Plan in Plan Mode
+
+Implementation plans are approved in Plan Mode. If the session is not in Plan Mode, enter it with the `EnterPlanMode` tool. If that tool is not available, ask the user to switch to Plan Mode (Shift+Tab, or `/plan` before the prompt) and stop.
+
+Read only what you need to plan, inside the approved limits: `settings.gradle.kts` (or `.gradle`) to find the module, the module's package layout with Glob, `git status`, and the ticket if the user gave one. Do not read the layers' code in depth; the agents do that.
+
+Then:
+
+1. **Ask what the code cannot answer** in one round with AskUserQuestion, with a recommendation when you have one: behavior, offline handling, scope, external contracts (endpoint, payload, events), and any choice outside the routine list, such as a new public interface, a new dependency or a version change, or a migration strategy. Never ask about the routine choices.
+2. **Check that no other run owns this checkout.** If `build/android-feature-kit/scope.json` exists and its `session_id` is not `${CLAUDE_SESSION_ID}`, another session may be running a task here. Only one run works in a checkout at a time, and the layer guard does not let you replace that file. Tell the user; if that run is over, the user deletes the file (for example with `! rm build/android-feature-kit/scope.json`), and you continue after they say so.
+3. **Write the plan** and present it with `ExitPlanMode`. The plan has these parts, and the `Agents:` line in exactly this form, because the optional plan gate reads it:
+
+```
+Goal: <one paragraph, with the observable acceptance criteria>
+Modules: <feature module folders, for example feature/orders>
+Decisions: <each question and the user's answer>
+Brief: <none | the ticket link | docs/features/<feature>/<task-id>.md, and why>
+Agents: domain-builder (sonnet), data-builder (haiku), ui-builder (sonnet), feature-integrator (sonnet)
+Work: <per agent: what it creates or changes; the order; which ones run in parallel>
+Integration: <changes outside the feature's layers known now: Gradle, version catalog, the app's NavHost, shared providers> | none
+Checks: <the builds and tests each agent runs; build-doctor and test-analyst (haiku) diagnose failures>
+Review: <android-reviewer, or the external reviewer configured in .claude/android-feature-kit.json>, up to <n> rounds
+Stop and ask when: <a new decision appears, an agent asks to change tier, an escalation is needed, the review needs more rounds>
+```
+
+List in `Agents:` only the agents the task needs, by their names in the table below, each with the model you propose in parentheses. For a small change without agents, write `Agents: none`. When the user changes the plan, present it again.
+
+### What goes into the plan
+
+**Which agents.** A bug in one layer needs only that layer's agent. A new screen on an existing use case may need only `ui-builder`. `domain-builder` goes first whenever the contract (models, errors, repository interfaces, use case signatures) has to change; `data-builder` and `ui-builder` then run in parallel when both are needed. `feature-integrator` is in the plan only when integration is known now.
+
+**A small change.** One layer, no contract change, no new module, screen, endpoint, entity or dependency: propose doing it in this session with that layer's skill, without agents. The plan says which skill and what changes, and the user approves it like any other.
+
+**Brief or not.** Propose a brief when the plan creates or changes any of these:
 
 1. a feature module that does not exist yet in `settings.gradle.kts`;
 2. a new screen or destination in the graph;
 3. a new endpoint, or a new entity or table;
 4. what the user sees of something that exists: offline or cache behavior, how errors show, navigation exits, tracking events.
 
-Bugs whose expected behavior is already clear (a test, the ticket or the code says it), refactors and visual tweaks with no new logic need no brief. A bug whose expected behavior is ambiguous needs no brief, but the user's decision is written down before implementing (one line in the ticket, the brief folder or the commit message). When unsure, ask once: "This creates a screen and an endpoint: shall I write a brief?" The user can also ask for a brief.
+Bugs whose expected behavior is already clear (a test, the ticket or the code says it), refactors and visual tweaks with no new logic need no brief. For a bug whose expected behavior is ambiguous, propose writing the user's decision down (one line in the ticket, the brief folder or the commit message). A ticket with acceptance criteria is the brief. Otherwise it goes in `docs/features/<feature>/<task-id>.md` in the repository, with the ticket id or a short slug of the task as `<task-id>`. A brief holds the goal, observable acceptance criteria, the decisions still open, and only the contracts that apply: offline and cache behavior, writes and mutations, errors, the endpoint, tracking events, navigation exits. No class lists and no screens described in prose.
 
-Where the brief lives:
+**Models.** Propose these, and say why when you propose something else:
 
-- If the ticket already has acceptance criteria, the brief is the link to the ticket.
-- If the ticket lacks decisions, write `docs/features/<feature>/<task-id>.md` in the repository: a link to the ticket and only what is missing.
-- Without a ticket, the same file holds the whole brief. Use the ticket id as `<task-id>`, or a short slug of the task.
+| Agent | Writes | Model |
+| :--- | :--- | :--- |
+| `domain-builder` | the domain package: use cases, models, repository interfaces, errors | sonnet |
+| `data-builder` | the data package: repositories, API, DTOs, mappers, Room, DataStore, data Hilt bindings | haiku; sonnet when the plan includes a Room migration or schema change, sync or refresh policy, conflict resolution or encryption |
+| `ui-builder` | presentation, the feature's navigation graph, resources | sonnet |
+| `feature-integrator` | what lies outside the layers: Gradle, version catalog, shared providers, the app's NavHost | sonnet |
+| `build-doctor`, `test-analyst` | nothing; they diagnose failures | haiku |
+| `android-reviewer` | nothing; it reviews | sonnet |
+| `android-architect` | nothing; escalations | opus |
 
-A brief contains the goal, observable acceptance criteria, the decisions still open, and only the contracts that apply: offline and cache behavior, writes and mutations, errors, the endpoint, tracking events, navigation exits. No class lists and no screens described in prose.
+**Reviewer and rounds.** `android-reviewer` reviews by default. If `.claude/android-feature-kit.json` in the repository configures an external reviewer (see `references/external-review.md`), offer it as an option too. Propose a round cap, for example two: one review and one check of the fixes. Being installed or configured is not a choice; the user picks the reviewer in the plan.
 
-## 3. Ask what the code cannot answer
+## 3. Delegate the approved plan
 
-The agents take conventions from the code. What the code cannot answer is a question for the user: behavior, offline handling, scope, external contracts (endpoint, payload, events). Ask these in one round with AskUserQuestion, recommend an option when you have one, and record the answers in the brief or, without a brief, in the message to each agent. Never ask about naming or structure the module already shows.
+After the user approves:
 
-## 4. Pick the data tier
+1. Write the scope to `build/android-feature-kit/scope.json` with the plan's modules and this session's id: `{"modules": ["feature/orders"], "session_id": "${CLAUDE_SESSION_ID}"}`. The layer guard reads it: the layer agents write only inside those modules, and `feature-integrator` writes only outside their `src/` folders, except their `AndroidManifest.xml` files (it does not write at all without this file). It also marks the checkout as taken by this session.
+2. Write the brief if the plan has one.
+3. **A small change without agents**: load the layer skill the plan names, make the change in this session, run that skill's checks, then continue with section 5 when the plan has a review, or section 6.
+4. Otherwise, call the agents in the plan's order, with the model the plan gives each one (`model` on the Agent call). Each agent sees only your message: give it the module path, the task for its layer, the decisions, the brief path or ticket text, the contract it builds against (paths and signatures), and the routine choices from the repository's block when they differ from the defaults.
 
-`data-builder` runs on the cheap model by default, because most data work is routine. Run it on the standard model (`model: "sonnet"` on the Agent call) when the plan includes a Room migration or schema change, sync or refresh policy, conflict resolution or encryption, when the agent replies `ESCALATE_TIER: yes`, or when it fails the same task twice.
+Read each reply's STATUS and fields:
 
-## 5. Delegate
+- `blocked` with QUESTIONS: ask the user, then answer the same agent with SendMessage so it continues with its context.
+- CONTRACT_REQUESTS: a change to the domain contract that the plan did not include is a new decision. Ask the user, then send it to `domain-builder` (SendMessage if its conversation is still available, otherwise a new call with the request) and tell the requesting agent what changed.
+- `ESCALATE_TIER: yes` from `data-builder`: tell the user why and ask before running it again on sonnet.
+- OUTSIDE_MODULE and DEPENDENCIES: items the plan's Integration part already covers go to `feature-integrator`. Any other item, and every new dependency or version change, is asked first. Give the integrator the exact list, each item with its path, reason, snippet and owner. Items it returns under RETURNED go back to their owner.
 
-Before the first agent runs, write the task's scope to `build/android-feature-kit/scope.json`: the folders of the feature modules this task works in, relative to the repository root, for example `{"modules": ["feature/orders"]}`. The layer guard reads it: the layer agents then write only inside those modules, and `feature-integrator` writes only outside their `src/` folders, except their `AndroidManifest.xml` files (it does not write at all without this file). Update it if the task moves to another module.
+Outside an approved small change, never edit application code yourself to save a round trip. If an agent cannot do something, find out why.
 
-Each agent sees only your message. Give it the module path, the task for its layer, the decisions, the brief path or ticket text, and the contract it builds against (paths and signatures).
-
-1. `domain-builder` first when the contract changes. Keep its reply: CONTRACT_CHANGES is what the others build against.
-2. `data-builder` and `ui-builder` next, in the same message so they run in parallel, when both are needed.
-3. Read each reply's STATUS and fields:
-   - `blocked` with QUESTIONS: ask the user, then answer the same agent with SendMessage so it continues with its context.
-   - CONTRACT_REQUESTS: send them to `domain-builder` (SendMessage if its conversation is still available, otherwise a new call with the request), then tell the requesting agent what changed.
-   - OUTSIDE_MODULE and DEPENDENCIES: collect them for the integrator.
-4. `feature-integrator` only when OUTSIDE_MODULE or DEPENDENCIES is not empty. Give it the exact list, each item with its path, reason, snippet and owner. Items it returns under RETURNED go back to their owner.
-
-Never edit application code yourself to save a round trip. If an agent cannot do something, find out why.
-
-## 6. Verify
+## 4. Verify
 
 Every agent builds and tests its module. When a failure remains that its owner could not fix:
 
 - compile, KSP, resource or dependency errors: `build-doctor` with the check summary;
 - failing tests: `test-analyst` with the module path;
-- then send the proposed fix to the owner named in the diagnosis.
+- then send the proposed fix to the owner named in the diagnosis, when it stays inside the approved plan. A fix that changes the plan (a dependency or version, a contract, files outside the plan) is asked first.
 
-Escalate to `android-architect` when the same error survives two fixes, when a diagnosis says ESCALATE, when the reviewer marks a finding as a design problem, or when two agents need contradictory contracts. A missing product decision goes to the user, not to a bigger model.
+Ask the user before calling `android-architect` when the same error survives two fixes, when a diagnosis says ESCALATE, when the reviewer marks a finding as a design problem, or when two agents need contradictory contracts. A missing product decision goes to the user, not to a bigger model.
 
-## 7. Review
+## 5. Review
 
-If `codex` is on the PATH (`command -v codex`, or `Get-Command codex` in PowerShell) and the repository is a git repository, Codex reviews. Otherwise `android-reviewer` does.
+Run the reviewer the plan names, up to the approved number of rounds.
 
-Every review round is tied to one exact change. Before each round, run `python3 <this skill's folder>/references/review_target.py` (`${CLAUDE_PLUGIN_ROOT}/skills/develop/references/review_target.py` in Claude Code) from the repository root (add a range such as `main...HEAD` to review commits instead of the working tree). It prints `source_revision` and `diff_hash`. Give the review a `run_id` (for example `review-<date>-<time>`), the same in every round. The working-tree target covers staged and unstaged changes (`git diff HEAD`) plus untracked files. `rules_version` is the `version` in the plugin's `.claude-plugin/plugin.json`.
+Every review round is tied to one exact change. Before each round, run `python3 ${CLAUDE_SKILL_DIR}/references/review_target.py` from the repository root (`python` on Windows; add a range such as `main...HEAD` to review commits instead of the working tree). It prints `source_revision` and `diff_hash`. Give the review a `run_id` (for example `review-<date>-<time>`), the same in every round. The working-tree target covers staged and unstaged changes (`git diff HEAD`) plus untracked files. `rules_version` is the kit's version, the content of `${CLAUDE_SKILL_DIR}/references/VERSION`.
 
-Codex review, read-only, with the kit's schema:
+- **`android-reviewer`**: give it the target, its identity, the task, the brief, the decisions and the modules, and in later rounds its previous findings with your responses.
+- **External reviewer**: follow `references/external-review.md`. You write the prompt to `build/android-feature-kit/review/round-<n>-prompt.md` and run `run_review.py`, which calls the configured command and checks the answer against `references/review.schema.json` and the identity.
 
-1. Write the prompt from `references/codex-review.md` (in this skill's folder) to `build/android-feature-kit/review/round-1-prompt.md`, filling in the target, its identity, the task, the brief, the decisions and the rules files for the layers touched.
-2. Run, from the repository root:
+After each round, show the user the findings. Fixes for findings go to their owners once the user approves them; a finding you would dispute or defer goes to the user with your reason. Accept a READY verdict only if the answer repeats the identity you sent (run id, round, source revision, diff hash, rules version), and a fresh `review_target.py` run for the same target prints the same `source_revision` and `diff_hash`, and `references/VERSION` is unchanged. If anything moved after the review started, the next round checks it. Keep the flow's own files (scope, prompts, answers, logs) in `build/android-feature-kit/`: `review_target.py` leaves that folder out of the identity.
 
-   ```
-   codex exec -s read-only --output-schema <schema> -o build/android-feature-kit/review/round-1.json - < build/android-feature-kit/review/round-1-prompt.md > build/android-feature-kit/review/round-1.log 2>&1
-   ```
+The review ends when an accepted verdict is READY and the checks pass, or when the approved rounds are used up. Another round beyond the cap is the user's decision.
 
-   `<schema>` is `references/review.schema.json` in this skill's folder (`${CLAUDE_PLUGIN_ROOT}/skills/develop/references/review.schema.json` in Claude Code).
-
-3. Read only the JSON. Keep the session id (the `session id:` line of the log) for the next rounds.
-4. Send each finding to its owner. Answer every finding with fixed (what changed), disputed (why) or deferred (why).
-5. Next round: write the responses as the prompt and run `codex exec resume <session id> -c 'sandbox_mode="read-only"' --output-schema <same schema> -o build/android-feature-kit/review/round-<n>.json - < <prompt>`. Use the exact session id, never `--last`.
-
-With `android-reviewer`, give it the same inputs, including the target identity, and in later rounds its previous findings with your responses.
-
-Accept a READY verdict only if the answer repeats the identity you sent (run id, round, source revision, diff hash, rules version), and a fresh `review_target.py` run for the same target prints the same `source_revision` and `diff_hash`, and the plugin version is unchanged. If anything moved after the review started, run another round. Keep the flow's own files (scope, prompts, answers, logs) in `build/android-feature-kit/`: `review_target.py` leaves that folder out of the identity. The review ends when an accepted verdict is READY and the checks pass, or after three rounds. A finding disputed twice goes to the user.
-
-## 8. Report
+## 6. Report and release the checkout
 
 Tell the user, briefly:
 
@@ -116,6 +134,8 @@ Tell the user, briefly:
 - the checks run and the ones that could not run;
 - the review verdict and anything left open.
 
+Then, if `build/android-feature-kit/scope.json` still holds this session's id, delete it, so another session can run a task in this checkout.
+
 ## Without the kit's agents
 
-If the agents are not available (for example in Codex, where plugins do not ship agents), do the same steps yourself in order: for each layer, load its skill, do its part, run its checks, then move to the next layer. Keep the brief, the questions and the review. The layer guard does not run there, so keep each step inside its layer yourself.
+If the agents are not available (the kit's skills were copied into the repository without the plugin), the plan and its approval stay the same, and you do the work yourself in order: for each layer, load its skill, do its part, run its checks, then move to the next layer. Keep the brief, the questions and the review. The layer guard does not run there, so keep each step inside its layer yourself.

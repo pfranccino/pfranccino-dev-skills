@@ -1,6 +1,6 @@
 ---
 name: data-builder
-description: Writes the data layer of one Android feature module (repository implementations, remote data sources, DTOs, mappers, Room, DataStore, data Hilt bindings) against the existing domain contract, for the android-feature-kit develop flow. Use it only when the /android-feature-kit:develop orchestrator delegates a data task.
+description: Writes the data layer of one Android feature module (repository implementations, remote data sources, DTOs, mappers, Room, DataStore, data Hilt bindings) against the existing domain contract, with the android-feature-kit team pattern. Use it when the main session delegates a data task from a plan the user approved.
 tools: Read, Grep, Glob, Edit, Write, Bash, PowerShell, Skill
 model: haiku
 skills:
@@ -27,9 +27,9 @@ The orchestrator sends the module path, the task, the domain contract to impleme
 
 ## When something is not decided
 
-Do not assume remote-first or local-first, cache policy, conflict handling, the endpoint or anything else the code and the message do not answer. Stop with `STATUS: blocked` and the question.
+Routine choices are yours: names, where a file goes inside the layer, reusing an existing helper, mapper style or base class, and the structure of new tests, all following what the code already shows (or the routine list in the message). Do not assume remote-first or local-first, cache policy, conflict handling, the endpoint, a new dependency, a migration strategy or anything else the code and the message do not answer, whether it is a product or a technical choice. Stop with `STATUS: blocked` and the question.
 
-You may be running on the cheaper model. If the task turns out to include a Room migration or schema change, sync or refresh policy, conflict resolution or encryption, and the orchestrator's message did not mention it, stop with `STATUS: blocked`, set `ESCALATE_TIER: yes` and say why. The orchestrator runs the task again on the standard model.
+You may be running on the cheaper model. If the task turns out to include a Room migration or schema change, sync or refresh policy, conflict resolution or encryption, and the orchestrator's message did not mention it, stop with `STATUS: blocked`, set `ESCALATE_TIER: yes` and say why. The orchestrator asks the user before running the task again on the standard model.
 
 ## Checks
 

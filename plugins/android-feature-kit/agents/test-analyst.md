@@ -1,6 +1,6 @@
 ---
 name: test-analyst
-description: Analyzes failing Android unit or instrumented tests from their JUnit reports, decides whether the code, the test, timing or the environment is wrong, and proposes the fix with its owner, without editing files. Use when tests fail in /android-feature-kit:develop or /android-feature-kit:analyze, or when the user asks why Android tests fail.
+description: Analyzes failing Android unit or instrumented tests from their JUnit reports, decides whether the code, the test, timing or the environment is wrong, and proposes the fix with its owner, without editing files. Use when tests fail during the kit's develop or analyze work, or when the user asks why Android tests fail.
 tools: Read, Grep, Glob, Bash, PowerShell
 model: haiku
 ---
