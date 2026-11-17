@@ -1,6 +1,6 @@
 ---
 name: build-doctor
-description: Diagnoses a failing Android Gradle build (compiler, KSP, resource, dependency, configuration or environment errors) and proposes the smallest fix with its owner, without editing files. Use when a build fails in /android-feature-kit:develop or /android-feature-kit:analyze, or when the user asks why an Android build fails.
+description: Diagnoses a failing Android Gradle build (compiler, KSP, resource, dependency, configuration or environment errors) and proposes the smallest fix with its owner, without editing files. Use when a build fails during the kit's develop or analyze work, or when the user asks why an Android build fails.
 tools: Read, Grep, Glob, Bash, PowerShell
 model: haiku
 ---

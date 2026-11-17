@@ -1,6 +1,6 @@
 # Android Feature Kit
 
-Agent skills for Claude Code and Codex to build an Android feature module layer by layer: navigation, presentation, domain, data, Room and DataStore. On top of the skills, the kit has agents that split the work by layer, an orchestrator, a read-only analysis flow, a hook that keeps each agent inside its layer, and check scripts that summarize Gradle output.
+Agent skills for Claude Code to build an Android feature module layer by layer: navigation, presentation, domain, data, Room and DataStore. On top of the skills, the kit has agents that split the work by layer, two skills that the main conversation uses to coordinate them (`develop` and `analyze`), hooks that keep each agent inside its layer, and check scripts that summarize Gradle output.
 
 The kit works together with a selection of Google's official Android skills. This document says where every skill comes from:
 
@@ -10,24 +10,29 @@ The kit works together with a selection of Google's official Android skills. Thi
 
 ## How the kit works
 
-There are two entry points, and both run only when you call them:
+You talk to Claude as usual. The main conversation coordinates the kit: it reads your request, proposes how to do it, and calls the agents only after you approve.
 
-- `/android-feature-kit:develop` builds or changes code in a feature module. The main session plans the task, asks you what the code cannot answer, writes a short brief when the task creates or changes behavior, and delegates each layer to its agent.
-- `/android-feature-kit:analyze` searches, explains, diagnoses and reviews, and edits nothing.
+- Ask to build or change a feature ("add a cancel button to the order detail; the backend has `POST /orders/{id}/cancel`") and the `develop` skill loads. Claude explores within the limits you approved, asks what the code cannot answer, and presents a plan in Plan Mode. No agent writes code until you approve the plan.
+- Ask about the code, a failing build or failing tests, or for a review, and the `analyze` skill loads. Claude proposes how it will answer, and you approve it in the conversation.
+- `/android-feature-kit:develop` and `/android-feature-kit:analyze` are shortcuts to the same skills. With no task, they ask what you want.
 
-The six layer skills still work on their own. For a small change, ask for it directly and the matching skill loads, without the flow.
+The six layer skills still work on their own. For a small change in one layer, ask for it directly and the matching skill loads, without agents.
+
+Claude decides whether a plain request loads `develop` or `analyze`, from each skill's description and from the block in your `CLAUDE.md`. When a request does not load the one you expect, use its shortcut.
 
 ```mermaid
 flowchart TB
-  U["You: ask and decide"] --> DEV["/develop: orchestrator in the main session"]
-  U --> AN["/analyze: read-only"]
-  DEV -->|"contract first"| DOM["domain-builder"]
-  DEV --> DATA["data-builder"]
-  DEV --> UI["ui-builder"]
-  DEV -->|"changes outside the layers"| INT["feature-integrator"]
-  DEV --> REV["Codex, or android-reviewer"]
-  DEV -.->|"failures"| DIAG["build-doctor, test-analyst"]
-  DEV -.->|"escalation"| ARCH["android-architect"]
+  U["You: ask, approve, decide"] --> MAIN["Main conversation"]
+  MAIN -->|"build or change"| DEV["develop: plan in Plan Mode"]
+  MAIN -->|"questions, failures, reviews"| AN["analyze: plan in the conversation"]
+  DEV -->|"you approve"| RUN["Approved plan"]
+  RUN -->|"contract first"| DOM["domain-builder"]
+  RUN --> DATA["data-builder"]
+  RUN --> UI["ui-builder"]
+  RUN -->|"integration in the plan"| INT["feature-integrator"]
+  RUN --> REV["android-reviewer, or the external reviewer you picked"]
+  RUN -.->|"failures"| DIAG["build-doctor, test-analyst"]
+  RUN -.->|"escalation, after asking you"| ARCH["android-architect"]
   AN --> DIAG
   AN --> REV
   AN --> ARCH
@@ -35,81 +40,123 @@ flowchart TB
   DIAG --> CHECKS
 ```
 
-| Agent | Writes | Model |
+| Agent | Writes | Model the plan proposes |
 | :--- | :--- | :--- |
 | `domain-builder` | The domain package; preloads `domain-layer` | Sonnet |
-| `data-builder` | The data package; preloads `data-repository`, loads `data-room` and `data-datastore` when needed | Haiku; the orchestrator runs it on Sonnet for migrations, sync or refresh policy, conflict resolution, encryption, or after two failures |
+| `data-builder` | The data package; preloads `data-repository`, loads `data-room` and `data-datastore` when needed | Haiku; Sonnet when the plan includes migrations, sync or refresh policy, conflict resolution or encryption |
 | `ui-builder` | Presentation, the feature graph and resources; preloads `feature-ui-compose`, loads `feature-navigation-compose` when needed | Sonnet |
 | `feature-integrator` | What lies outside the layers: Gradle, the version catalog, shared providers, the app's NavHost | Sonnet |
 | `build-doctor`, `test-analyst` | Nothing; they diagnose failures and name the owner of the fix | Haiku |
-| `android-reviewer` | Nothing; it reviews against the rules when Codex is not installed | Sonnet |
+| `android-reviewer` | Nothing; the default reviewer | Sonnet |
 | `android-architect` | Nothing; it handles escalations | Opus |
 
-Each agent sees only the orchestrator's message, never the whole conversation. When it needs a decision, it stops and returns the question; the orchestrator asks you and resumes the same agent.
+Each agent sees only the main conversation's message, never the whole conversation. When it needs a decision, it stops and returns the question; Claude asks you and resumes the same agent.
 
-A brief is written when the task creates a module, a screen, an endpoint or an entity, or changes what the user sees (offline behavior, errors, navigation exits, tracking events). A ticket with acceptance criteria is the brief. Otherwise the brief goes in `docs/features/<feature>/<task-id>.md` in the app repository.
+A brief is proposed when the task creates a module, a screen, an endpoint or an entity, or changes what the user sees (offline behavior, errors, navigation exits, tracking events). A ticket with acceptance criteria is the brief. Otherwise the brief goes in `docs/features/<feature>/<task-id>.md` in the app repository.
+
+### The block in your CLAUDE.md
+
+[`claude-md-block.md`](skills/develop/references/claude-md-block.md), in the `develop` skill's `references/`, is a block to paste at the end of the app repository's `CLAUDE.md`. It holds what you approve once, for every task:
+
+- Routing: which requests go to `develop`, which go to `analyze`, and that a small change in one layer uses the layer skill.
+- Exploration approved in advance: what Claude may read and run without asking while it plans. By default: reading files, searching and read-only git. Builds, test runs, generated maps, the network and agents are asked first.
+- Routine choices: names, file placement, reusing existing helpers and the structure of tests follow the code and are never questions. Everything else is asked.
+
+Edit the lists to fit the repository. Without the block, `develop` and `analyze` propose its defaults once per session.
 
 ### Rules with IDs
 
 Every layer skill has `references/rules.md`: each of its rules with a stable ID (`DOM-03`, `UI-14`, `NAV-17`), plus the kit-wide `KIT-01` to `KIT-07`. Reviews cite these IDs, and a reviewer reads the rules of the layers a change touches instead of the full skills. Sections needed only in specific cases also live in `references/` and load when the task needs them: navigation migration, custom `NavType`, Room migrations, DataStore encryption.
 
-### The layer guard
+### The hooks
 
-`hooks/claude-hooks.json` runs `hooks/layer_guard.py` before every edit and shell command in Claude Code. It acts only on the kit's agents:
+`hooks/claude-hooks.json` runs two scripts in Claude Code.
+
+`hooks/layer_guard.py` runs before every edit and shell command. It acts on the kit's agents:
 
 - Each layer agent writes only inside its layer's packages; the integrator writes outside the feature modules' sources, plus their manifests; the read-only agents write nothing. Paths are resolved first, so `..` and paths outside the project are blocked.
 - Their shell commands must be the Gradle wrapper, read-only git without write or exec options, read-only file tools, Android CLI queries or the kit's check scripts, with no redirection to files, command substitution or PowerShell script blocks.
 
-Before delegating, `develop` writes the task's feature modules to `build/android-feature-kit/scope.json`. With it, the layer agents write only inside those modules, and the integrator only outside their `src/` folders, except their `AndroidManifest.xml` files; without it, the integrator writes nothing. A project can replace the layer patterns in `.claude/android-feature-kit.json` (see the docstring of `layer_guard.py`). The hook needs Python 3.8 or later; without Python it lets calls through.
+It also stops every session, the main one included, from writing the plan gate's record (`build/android-feature-kit/approved-plan.json`) and from replacing a scope file that belongs to another session. The kit's agents never write in `build/android-feature-kit/`.
 
-It is a guardrail, not a sandbox. It blocks the usual ways an agent writes files through the shell, but Gradle runs the project's own build logic, and a determined command can find other ways. The app repository's own checks (pre-commit, CI) remain the boundary. Codex hooks cannot tell which agent made a call, so Codex has no equivalent.
+After you approve the plan, `develop` writes the task's feature modules and the session id to `build/android-feature-kit/scope.json`, and deletes the file when it reports. With it, the layer agents write only inside those modules, and the integrator only outside their `src/` folders, except their `AndroidManifest.xml` files; without it, the integrator writes nothing. A project can replace the layer patterns in `.claude/android-feature-kit.json` (see the docstring of `layer_guard.py`).
+
+`hooks/plan_gate.py` runs before Claude launches an agent and after you approve a plan in Plan Mode:
+
+- One kit run per checkout. While `scope.json` belongs to another session, no writing agent can start and Claude cannot replace the file. Claude tells you; if that run is over, you delete the file (for example with `! rm build/android-feature-kit/scope.json`).
+- The plan gate, off by default. With `{"planGate": true}` in `.claude/android-feature-kit.json`, approving a plan in Plan Mode records the agents on the plan's `Agents:` line, including your edits to the plan, and a writing agent that the plan approved in this session does not list, or that would run on another model than the plan gives it, is blocked. It has unit tests but has not run in a live session yet, which is why it is opt-in.
+
+Both hooks need Python 3.8 or later; without Python they let calls through. They are guardrails, not a sandbox. They block the usual ways an agent writes files through the shell, but Gradle runs the project's own build logic, and a determined command can find other ways. The app repository's own checks (pre-commit, CI) remain the boundary.
 
 ### Check scripts
 
 [`repo-tools/agent-checks`](repo-tools/agent-checks/README.md) has `gradle_summary.py` and `test_summary.py`. They turn Gradle output and JUnit reports into a short JSON summary that agents, people and CI read the same way, and keep the raw log as evidence. They belong in the app repository at `tools/agent-checks/`; the install script copies them there with `--with-repo-tools`.
 
-### Codex
+### External reviewer
 
-Codex plugins do not ship agents, so in Codex `$develop` runs the same steps itself, one layer at a time. Codex is optional in Claude Code: when the `codex` command is installed, it reviews the change in a read-only process, with finding IDs and resumed rounds; otherwise `android-reviewer` does. Each round is tied to the exact change by `skills/develop/references/review_target.py` (the commit plus a hash of the staged, unstaged and untracked changes), and a READY verdict counts only while that hash still matches.
+`android-reviewer` reviews by default. Any command-line tool can review instead, if it reads a prompt on standard input and returns JSON that follows [`review.schema.json`](skills/develop/references/review.schema.json). Configure it in the app repository's `.claude/android-feature-kit.json`, for example for Codex:
+
+```json
+{
+  "reviewer": {
+    "name": "Codex",
+    "command": ["codex", "exec", "-s", "read-only", "--output-schema", "{schema}", "-o", "{output}", "-"]
+  }
+}
+```
+
+The plan offers it next to `android-reviewer`, and you pick. [`run_review.py`](skills/develop/references/run_review.py) runs one round and checks that the answer follows the schema and repeats the change's identity; [`external-review.md`](skills/develop/references/external-review.md) has the configuration and the prompts. Each round is tied to the exact change by `skills/develop/references/review_target.py` (the commit plus a hash of the staged, unstaged and untracked changes), and a READY verdict counts only while that hash still matches.
 
 ## How the kit decides
 
-The kit makes two kinds of decisions. While a task runs, `develop` applies fixed rules: which agents to call, whether to write a brief, what to ask you, which model to use, when to escalate and when to accept a review. Behind those rules are design decisions about how the kit is built. Both are written down here, so you can predict what the flow will do and change a rule on purpose.
+The kit proposes and you decide. Before anything writes code, you see a plan and approve it. The rules below are what `develop` uses to build that plan, and behind them are the design decisions about how the kit is built. Both are written down here, so you can predict what the plan will propose and change a rule on purpose.
 
-You decide what the code cannot: behavior, scope, external contracts and every product question. The kit never answers those for you.
+You decide what the code cannot answer: behavior, scope, external contracts, every product question, and every technical choice outside the routine list. The kit never answers those for you.
 
-### While a task runs
+### When you are asked
 
-**Which agents.** `develop` reads just enough to plan (`settings.gradle.kts`, the module's package layout, `git status`, the ticket) and calls only the agents the plan needs:
+| Moment | What you approve | Where |
+| :--- | :--- | :--- |
+| Before exploring | The exploration approved in advance, once: the `CLAUDE.md` block, or once per session without it | The conversation |
+| Before any agent writes | The plan: goal, modules, decisions, brief, agents and their models, integration, checks, reviewer and round cap | Plan Mode |
+| Analysis | Which agent or tool answers, on which model, and what it runs | The conversation |
+| During the task | Anything the plan did not include: a contract change, a new dependency or version, a fix outside the plan, an agent that asks for a larger model, an escalation to `android-architect` | The conversation |
+| After each review round | Which findings get fixed, the ones Claude would dispute or defer, and any round beyond the cap | The conversation |
 
-- A bug in one layer calls only that layer's agent.
+### What the plan proposes
+
+**Which agents.** `develop` reads just enough to plan (`settings.gradle.kts`, the module's package layout, `git status`, the ticket) and proposes only the agents the task needs, on a line that starts with `Agents:`:
+
+- A bug in one layer needs only that layer's agent.
 - When the contract changes (models, errors, repository interfaces, use case signatures), `domain-builder` runs first, and its `CONTRACT_CHANGES` is what the others build against.
 - `data-builder` and `ui-builder` run in parallel when both are needed.
-- `feature-integrator` runs only when an agent reported changes outside the layers (`OUTSIDE_MODULE`) or new dependencies (`DEPENDENCIES`).
+- `feature-integrator` is in the plan when integration is known up front. Items the agents report later (`OUTSIDE_MODULE`, `DEPENDENCIES`) that the plan does not cover are asked first.
 
-**Whether to write a brief.** A task gets a brief when its plan creates or changes any of these:
+**A small change.** One layer, no contract change, no new module, screen, endpoint, entity or dependency: the plan proposes doing it in the main conversation with that layer's skill, without agents.
+
+**Whether to write a brief.** The plan proposes a brief when the task creates or changes any of these:
 
 1. a feature module that is not yet in `settings.gradle.kts`;
 2. a new screen or destination in the graph;
 3. a new endpoint, entity or table;
 4. what the user sees of something that exists: offline or cache behavior, how errors show, navigation exits, tracking events.
 
-Bugs whose expected behavior is already clear, refactors and visual tweaks get no brief. A bug whose expected behavior is ambiguous gets no brief either, but your decision is written down before anyone implements it. When the rule does not settle it, `develop` asks you once. A ticket with acceptance criteria is the brief. Without one, the brief goes in `docs/features/<feature>/<task-id>.md` and holds only the goal, observable acceptance criteria, open decisions and the contracts that apply.
+Bugs whose expected behavior is already clear, refactors and visual tweaks get no brief. For a bug whose expected behavior is ambiguous, the plan proposes writing your decision down before anyone implements it. A ticket with acceptance criteria is the brief. Without one, the brief goes in `docs/features/<feature>/<task-id>.md` and holds only the goal, observable acceptance criteria, open decisions and the contracts that apply.
 
-**What to ask you.** Agents take conventions from one or two files in the same package of the module, or of a neighboring feature. Naming and structure the code already shows are never questions. What the code cannot answer (behavior, offline handling, scope, the endpoint, the events) is asked in one round. Subagents cannot ask you directly, so an agent that needs a decision stops with `STATUS: blocked` and the question, `develop` asks you, and the same agent resumes with its context.
+**What is asked.** Agents take conventions from one or two files in the same package of the module, or of a neighboring feature. The routine choices in the `CLAUDE.md` block are never questions. What the code cannot answer (behavior, offline handling, scope, the endpoint, the events, a new public interface or dependency, a migration strategy) is asked in one round before the plan. Subagents cannot ask you directly, so an agent that needs a decision stops with `STATUS: blocked` and the question, Claude asks you, and the same agent resumes with its context.
 
 **Which model.**
 
-| Role | Model | Changes when |
+| Role | Proposed model | Proposed differently when |
 | :--- | :--- | :--- |
-| `domain-builder`, `ui-builder`, `feature-integrator`, `android-reviewer` | Sonnet | Never |
-| `data-builder` | Haiku | Sonnet when the plan includes a Room migration or schema change, sync or refresh policy, conflict resolution or encryption; when the agent replies `ESCALATE_TIER: yes`; or after two failures on the same task |
-| `build-doctor`, `test-analyst` | Haiku | Never |
-| `android-architect` | Opus | Called only on escalation |
+| `domain-builder`, `ui-builder`, `feature-integrator`, `android-reviewer` | Sonnet | Claude has a reason, and says it in the plan |
+| `data-builder` | Haiku | Sonnet when the plan includes a Room migration or schema change, sync or refresh policy, conflict resolution or encryption. If the agent replies `ESCALATE_TIER: yes` or fails twice on the same task, Claude asks you before moving it to Sonnet |
+| `build-doctor`, `test-analyst` | Haiku | Claude has a reason, and says it in the plan |
+| `android-architect` | Opus | Called only on escalation, after asking you |
 
-**When to escalate.** `android-architect` is called when the same error survives two fixes, when a diagnosis says `ESCALATE`, when a review finding is a design problem, or when two agents need contradictory contracts. A missing product decision goes to you, not to a larger model.
+**When to escalate.** Claude asks you before calling `android-architect` when the same error survives two fixes, when a diagnosis says `ESCALATE`, when a review finding is a design problem, or when two agents need contradictory contracts. A missing product decision goes to you, not to a larger model.
 
-**Where each agent may write.** Before delegating, `develop` writes the task's feature modules to `build/android-feature-kit/scope.json`. The layer guard then holds each agent to it:
+**Where each agent may write.** The layer guard holds each agent to the scope file:
 
 | Agent | May write |
 | :--- | :--- |
@@ -117,34 +164,41 @@ Bugs whose expected behavior is already clear, refactors and visual tweaks get n
 | `feature-integrator` | Anywhere in the project except the scoped modules' `src/`, apart from their `AndroidManifest.xml` files; nothing at all without the scope file |
 | `build-doctor`, `test-analyst`, `android-reviewer`, `android-architect` | Nothing |
 
-**When a review counts.** Codex reviews when it is installed, and `android-reviewer` reviews otherwise. Every round carries the change's identity: a run id, the round, the commit, a hash of the staged, unstaged and untracked changes, and the plugin version. `develop` accepts READY only if the answer repeats that identity and the commit and hash still match the code. The review stops at READY with passing checks, or after three rounds. A finding disputed twice goes to you.
+**When a review counts.** You pick the reviewer and the maximum number of rounds in the plan. Every round carries the change's identity: a run id, the round, the commit, a hash of the staged, unstaged and untracked changes, and the kit version (`skills/develop/references/VERSION`). Claude accepts READY only if the answer repeats that identity and the commit and hash still match the code. After each round you decide which findings get fixed. The review stops at READY with passing checks, or when the approved rounds are used up.
 
 ### Why the kit is built this way
 
-These decisions come from a design debate between the maintainer, Claude and Codex in November 2026. The maintainer made the final call on each one.
+These decisions come from design debates between the maintainer, Claude and Codex in November 2026. The maintainer made the final call on each one.
 
 | Decision | Reason | Considered instead |
 | :--- | :--- | :--- |
-| One plugin with two entry points | Whether a task needs a brief depends on the task, and whether it writes depends on the agent's tools; neither follows a plugin boundary. The reviewer needs the same rules the builders follow. | One plugin to develop and one to analyze |
-| The orchestrator is a skill in the main session | Subagents cannot ask the user questions, and the orchestrator is the one that has to. | An orchestrator agent |
+| The main conversation coordinates | It is how Claude Code delegates: the main conversation picks agents from their descriptions and from routing rules in `CLAUDE.md`. Subagents cannot ask you questions, and the coordinator has to. | An orchestrator agent; a session started with `--agent`; agent teams, which are experimental and meant for agents that coordinate among themselves; dynamic workflows, which take no input from you while they run |
+| Plain requests load the flow, and the commands are shortcuts | You describe the work as you would to a teammate. Skills load from their descriptions, and the `CLAUDE.md` block adds the routing. | Entry skills that run only when invoked (0.3.0) |
+| Nothing writes before you approve the plan | Agents pause for human judgment at checkpoints and blockers, as Anthropic's guidance on orchestrator and worker agents describes. In 0.3.0 the flow chose the brief, the models, the escalations and the review on its own. | A fixed procedure that decides by itself |
+| Plan Mode for implementation, the conversation for analysis | Plan Mode keeps edits blocked until you approve; an analysis changes no source. | Plan Mode always, or the conversation always |
+| Exploration and routine choices are approved once | Reading the code to plan and following its names are not decisions. Asking about them every time turns each task into a questionnaire. | Asking before any exploration, and about every choice |
+| The plan gate is optional | Instructions alone do not enforce approval, but a permission prompt on every launch repeats the approval you already gave. The gate checks each launch against the approved plan, and stays off until it has run in real sessions. | Instructions only; a permission prompt for every writing agent |
+| One kit run per checkout | The scope file belongs to the checkout, so two runs would overwrite each other's scope. | Several runs, each with its own scope |
+| One plugin with two coordinating skills | Whether a task needs a brief depends on the task, and whether it writes depends on the agent's tools; neither follows a plugin boundary. The reviewer needs the same rules the builders follow. | One plugin to develop and one to analyze |
 | Layer agents, called only when needed | Each agent loads only its own skill, so a bug in one layer pays for one skill instead of all of them. | One implementer that loads every skill |
 | The domain contract goes first | Data and UI build in parallel against code that compiles, not against a document. | A spec document as the handoff |
 | A brief only when behavior is created or changed | A bug fix or an explanation needs no spec, and a ticket with acceptance criteria already is one. | A spec for every task, or none at all |
-| Data runs on Haiku by default | Most data work is routine: data sources, repository implementations, mappers. The risky cases move to Sonnet by rule. | Sonnet for all data work |
+| Data runs on Haiku by default | Most data work is routine: data sources, repository implementations, mappers. The plan proposes Sonnet for the risky cases. | Sonnet for all data work |
 | Rules with stable IDs in `references/` | A reviewer reads only the rules of the layers a change touches, and every finding names the rule it breaks. | Reviewers reading every full skill |
 | The layer guard is a plugin hook | Plugin agents ignore hooks in their own frontmatter, and a plugin hook sees which agent made each call. | Hooks declared per agent |
-| The app repository's checks are the real boundary | The hook is a guardrail: Gradle runs the project's own build logic, and Codex hooks cannot tell agents apart. | Relying on the hook alone |
-| Codex is an optional reviewer | Not every developer has Codex, and a reviewer from another model family catches mistakes the author's model misses. | Making Codex required |
+| The app repository's checks are the real boundary | The hooks are guardrails: Gradle runs the project's own build logic. | Relying on the hooks alone |
+| The external reviewer is optional, and any tool can be one | Not every developer has Codex, and a reviewer from another model family catches mistakes the author's model misses. Any tool that returns the review schema fits, and you pick it per task. | Codex required; Codex selected whenever it was installed (0.3.0) |
+| Claude Code only | The kit is built on Claude Code's agents, Plan Mode and hooks that know which agent made a call. Codex stays useful as an external reviewer. | Shipping the plugin for Codex too |
 | Check scripts live in the app repository | Agents, people and CI read the same short summaries of Gradle and test output. | Each agent reading raw logs |
 | Your own tools are used as they are | android-module-map and the dependency tools keep their logic in their own repositories; the kit calls them when they are installed and never re-implements them. | Copying their logic into the kit |
-| No model router | Each role has a fixed model, and the only routing left (data on Haiku or Sonnet) follows written rules. | A separate model that picks the model per task |
+| No model router | Each role has a default model that the plan proposes and you approve. The only rule-based choice left is data on Haiku or Sonnet. | A separate model that picks the model per task |
 
 ## 1. Skills in this kit
 
 | Skill | Use it for |
 | :--- | :--- |
-| [`develop`](skills/develop/SKILL.md) | Entry point that orchestrates the layer agents to build or change a feature (explicit only) |
-| [`analyze`](skills/analyze/SKILL.md) | Read-only entry point: search, explain, diagnose and review (explicit only) |
+| [`develop`](skills/develop/SKILL.md) | Coordinates the layer agents to build or change a feature, after you approve the plan in Plan Mode; loads from a plain request or `/android-feature-kit:develop` |
+| [`analyze`](skills/analyze/SKILL.md) | Searches, explains, diagnoses and reviews without changing source; loads from a plain request or `/android-feature-kit:analyze` |
 | [`feature-navigation-compose`](skills/feature-navigation-compose/SKILL.md) | Feature graphs, routes, exit callbacks, results and back handling with Navigation Compose 2 type-safe routes; migrating a module to that pattern |
 | [`feature-ui-compose`](skills/feature-ui-compose/SKILL.md) | Screen contracts (UiState, UiAction, SideEffect), MVI ViewModels by interface delegation, stateful and stateless Compose screens, previews |
 | [`domain-layer`](skills/domain-layer/SKILL.md) | Pure Kotlin use cases, business rules, domain models, repository interfaces and domain errors with the project's own `Either` |
@@ -251,19 +305,14 @@ These are team-fit decisions, not defects in those projects.
 
 ### 1. The plugin (once per developer, for all projects)
 
-Claude Code:
+In Claude Code:
 
 ```
 /plugin marketplace add pfranccino/pfranccino-dev-skills
 /plugin install android-feature-kit@pfranccino-dev-skills
 ```
 
-Codex:
-
-```
-codex plugin marketplace add pfranccino/pfranccino-dev-skills
-codex plugin add android-feature-kit@pfranccino-dev-skills
-```
+Then, in each app repository, paste [`skills/develop/references/claude-md-block.md`](skills/develop/references/claude-md-block.md) at the end of its `CLAUDE.md` and adjust its lists (see [The block in your CLAUDE.md](#the-block-in-your-claudemd)). The block is optional: without it, the kit proposes its defaults once per session.
 
 ### 2. The official skills (once per machine)
 
@@ -306,7 +355,7 @@ bash plugins/android-feature-kit/scripts/install-pack.sh --project ~/code/my-app
 
 This installs the official skills into the app and copies the kit's skills into `<app>/.claude/skills/` and `<app>/.agents/skills/`. Commit the result. Do not combine it with the plugin in the same project, or the agent sees every kit skill twice.
 
-The copied skills do not include the agents or the layer guard, which come only with the plugin; without them, `develop` runs the steps itself, layer by layer.
+The copied skills do not include the agents or the hooks, which come only with the plugin; without them, `develop` still asks for approval of its plan and then runs the steps itself, layer by layer.
 
 To put the check scripts in the app repository, add `-WithRepoTools` / `--with-repo-tools` (with `-Project` / `--project`). Commit `tools/agent-checks/`.
 
@@ -314,14 +363,14 @@ Every option has a dry run: `-DryRun` / `--dry-run`.
 
 ## Update
 
-- Kit skills: `/plugin marketplace update pfranccino-dev-skills` in Claude Code, `codex plugin marketplace upgrade` in Codex. If you copied them into an app, run the script again.
+- Kit skills: `/plugin marketplace update pfranccino-dev-skills` in Claude Code. If you copied them into an app, run the script again.
 - Official skills: `android skills update --all --agent=claude,codex`. Add `--project=<app>` if you installed them into an app.
 
 ## Changing a skill
 
-- Kit skills: keep the folder name equal to the `name` in the frontmatter, record the change in [CHANGELOG.md](CHANGELOG.md), and bump `version` in `.claude-plugin/plugin.json` and `.codex-plugin/plugin.json`.
+- Kit skills: keep the folder name equal to the `name` in the frontmatter, record the change in [CHANGELOG.md](CHANGELOG.md), and bump `version` in `.claude-plugin/plugin.json` and in `skills/develop/references/VERSION` (a test checks that they match; reviews use `VERSION` as the rules version).
 - When a rule changes in a `SKILL.md`, change it in the skill's `references/rules.md` too. IDs are never reused.
-- Tests for the hook and the check scripts: `python -m unittest discover -s hooks/tests` from the plugin folder, and `python -m unittest discover -s tests` from `repo-tools/agent-checks`.
+- Tests for the hooks, the check scripts and the external reviewer runner: `python -m unittest discover -s hooks/tests` from the plugin folder, and `python -m unittest discover -s tests` from `repo-tools/agent-checks` and from `skills/develop/references`.
 - Official skills: do not edit them in place, because `android skills update` overwrites them. Copy the skill, rename it, and add it to `skills/` as a kit skill with its origin documented above.
 
 ## License

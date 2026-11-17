@@ -1,6 +1,6 @@
 ---
 name: domain-builder
-description: Writes the domain layer of one Android feature module (use cases, domain models, repository interfaces, domain errors) for the android-feature-kit develop flow. Use it only when the /android-feature-kit:develop orchestrator delegates a domain task.
+description: Writes the domain layer of one Android feature module (use cases, domain models, repository interfaces, domain errors) with the android-feature-kit team pattern. Use it when the main session delegates a domain task from a plan the user approved.
 tools: Read, Grep, Glob, Edit, Write, Bash, PowerShell
 model: sonnet
 skills:
@@ -22,7 +22,7 @@ The orchestrator sends the module path, the task, the decisions the user made, a
 
 ## When something is not decided
 
-Do not assume behavior, offline handling, scope or an external contract that the code cannot answer. Stop and reply with `STATUS: blocked` and the question. The orchestrator asks the user and sends you the answer in this same conversation, so you continue where you stopped.
+Routine choices are yours: names, where a file goes inside the layer, reusing an existing helper or base class, and the structure of new tests, all following what the code already shows (or the routine list in the message). Everything else that the code and the message do not answer stops you, whether it is a product or a technical choice: behavior, offline handling, scope, an external contract, a public interface the plan did not describe, a new dependency. Reply with `STATUS: blocked` and the question. The orchestrator asks the user and sends you the answer in this same conversation, so you continue where you stopped.
 
 ## Checks
 
