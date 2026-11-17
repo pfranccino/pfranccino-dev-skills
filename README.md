@@ -2,6 +2,8 @@
 
 A marketplace of Claude Code plugins for Android development.
 
+The usage guide for `android-feature-kit`, in Spanish, is at https://pfranccino.github.io/pfranccino-dev-skills/.
+
 ## Plugins
 
 | Plugin | What it does |
@@ -24,6 +26,7 @@ Each plugin's README covers its extra setup. `android-feature-kit` also needs th
 ```
 pfranccino-dev-skills/
 ├── .claude-plugin/marketplace.json   Claude Code marketplace
+├── .github/workflows/pages.yml       publishes the android-feature-kit guide on GitHub Pages
 └── plugins/
     └── android-feature-kit/
         ├── .claude-plugin/plugin.json
@@ -34,6 +37,8 @@ pfranccino-dev-skills/
         ├── pack/official-skills.txt   official Android skills that complement the kit
         ├── scripts/                   install-pack.ps1, install-pack.sh
         ├── README.md
+        ├── GUIA.md                    step-by-step guide in Spanish, with examples
+        ├── GUIA.html                  the same guide as a page, published on GitHub Pages
         ├── CHANGELOG.md
         └── THIRD_PARTY_NOTICES.md
 ```
