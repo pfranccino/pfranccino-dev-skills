@@ -14,7 +14,7 @@ Question from the invocation: $ARGUMENTS
 
 If the line above holds a question, answer that one. If it is empty or shows a placeholder, ask and wait for the answer before anything else: when the conversation already states a question, ask whether that is the one to answer; otherwise ask what the user wants to know.
 
-Look for the android-feature-kit block in the repository's `CLAUDE.md` (between `<!-- android-feature-kit:start -->` and `<!-- android-feature-kit:end -->`). Its exploration approved in advance is what you may do without asking: usually reading files, searching, and read-only git. When the block is missing, propose the defaults from `${CLAUDE_SKILL_DIR}/../develop/references/claude-md-block.md` once in this session and wait for the answer.
+Read `.claude/android-feature-kit.md` in the repository, if it exists. Its exploration approved in advance is what you may do without asking: usually reading files, searching, and read-only git. When the file is missing, propose the defaults from `${CLAUDE_SKILL_DIR}/../develop/references/project-rules.md` once in this session and wait for the answer.
 
 Anything beyond those limits is proposed first, in one short message: which agent or tool, on which model, what it runs, and what it writes. Gradle builds, test runs, module maps and codegraph indexes write their own output (build folders, `docs/architecture/`, `.codegraph/`) even though they do not change source files, so they are always proposed. Wait for the user's answer before running them.
 

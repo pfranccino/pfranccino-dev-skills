@@ -18,14 +18,14 @@ If the line above names a task, a ticket or a link, that is the task. If it is e
 
 ## 1. The rules this repository set
 
-Look for the android-feature-kit block in the repository's `CLAUDE.md` (between `<!-- android-feature-kit:start -->` and `<!-- android-feature-kit:end -->`). It holds what the user approved once for every task:
+Read `.claude/android-feature-kit.md` in the repository, if it exists. It holds what the user approved once for every task:
 
 - **Exploration approved in advance**: what you may read and run without asking while you plan.
 - **Routine choices**: what follows from the code and is never a question.
 
-When the block is missing, propose the defaults from `${CLAUDE_SKILL_DIR}/references/claude-md-block.md` to the user once in this session, wait for the answer, and use what they approve. Mention that the block can go in `CLAUDE.md` so the question is not repeated.
+When the file is missing, propose the defaults from `${CLAUDE_SKILL_DIR}/references/project-rules.md` to the user once in this session, wait for the answer, and use what they approve. Mention that saving them as `.claude/android-feature-kit.md` avoids the question next time.
 
-Exploration that goes beyond the approved limits (a Gradle build, a module map or codegraph generation, anything that writes output, the network, a discovery agent the block does not list) is asked first, with what it would run and why.
+Exploration that goes beyond the approved limits (a Gradle build, a module map or codegraph generation, anything that writes output, the network, a discovery agent the file does not list) is asked first, with what it would run and why.
 
 ## 2. Plan in Plan Mode
 
@@ -90,7 +90,7 @@ After the user approves:
 1. Write the scope to `build/android-feature-kit/scope.json` with the plan's modules and this session's id: `{"modules": ["feature/orders"], "session_id": "${CLAUDE_SESSION_ID}"}`. The layer guard reads it: the layer agents write only inside those modules, and `feature-integrator` writes only outside their `src/` folders, except their `AndroidManifest.xml` files (it does not write at all without this file). It also marks the checkout as taken by this session.
 2. Write the brief if the plan has one.
 3. **A small change without agents**: load the layer skill the plan names, make the change in this session, run that skill's checks, then continue with section 5 when the plan has a review, or section 6.
-4. Otherwise, call the agents in the plan's order, with the model the plan gives each one (`model` on the Agent call). Each agent sees only your message: give it the module path, the task for its layer, the decisions, the brief path or ticket text, the contract it builds against (paths and signatures), and the routine choices from the repository's block when they differ from the defaults.
+4. Otherwise, call the agents in the plan's order, with the model the plan gives each one (`model` on the Agent call). Each agent sees only your message: give it the module path, the task for its layer, the decisions, the brief path or ticket text, the contract it builds against (paths and signatures), and the routine choices from `.claude/android-feature-kit.md` when they differ from the defaults.
 
 Read each reply's STATUS and fields:
 
