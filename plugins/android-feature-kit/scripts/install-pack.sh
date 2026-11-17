@@ -8,19 +8,19 @@
 #   (no --project)                       install the official skills globally, once per machine
 #   --project <app>                      install them into that app repository
 #   --project <app> --with-team-skills   also copy the kit's skills (skills/*) into the app:
-#                                        claude -> .claude/skills, codex -> .agents/skills
+#                                        claude-code -> .claude/skills, codex -> .agents/skills
 #                                        (do not combine this with the plugin)
 #   --project <app> --with-repo-tools    also copy the check scripts (repo-tools/agent-checks)
 #                                        into <app>/tools/agent-checks, where the kit's agents
 #                                        and CI use them
 #
 # Usage:
-#   scripts/install-pack.sh [--project ~/code/my-app] [--agents claude,codex] [--with-team-skills] [--with-repo-tools] [--dry-run]
+#   scripts/install-pack.sh [--project ~/code/my-app] [--agents claude-code,codex] [--with-team-skills] [--with-repo-tools] [--dry-run]
 set -euo pipefail
 
 plugin_root="$(cd "$(dirname "$0")/.." && pwd)"
 project=""
-agents="claude,codex"
+agents="claude-code,codex"
 with_team_skills=false
 with_repo_tools=false
 dry_run=false
@@ -84,7 +84,7 @@ if [ "$with_team_skills" = true ]; then
   IFS=',' read -r -a agent_list <<< "$agents"
   for agent in "${agent_list[@]}"; do
     case "$agent" in
-      claude) relative=".claude/skills" ;;
+      claude-code) relative=".claude/skills" ;;
       codex) relative=".agents/skills" ;;
       *) echo "warning: no skill folder known for agent '$agent'; kit skills not copied for it" >&2; continue ;;
     esac

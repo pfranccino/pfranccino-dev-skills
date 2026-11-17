@@ -11,7 +11,7 @@ stay updatable with `android skills update`. The list is in pack/official-skills
   (`android skills add <id> --agent=<agents>`). Use this with the marketplace plugin.
 - With -Project: installs them into that app repository (`--project=<app>`).
 - With -Project and -WithTeamSkills: also copies the kit's skills (skills/*) into the app:
-  claude -> .claude/skills, codex -> .agents/skills. Do not combine this with the plugin.
+  claude-code -> .claude/skills, codex -> .agents/skills. Do not combine this with the plugin.
 - With -Project and -WithRepoTools: also copies the check scripts (repo-tools/agent-checks)
   into <app>/tools/agent-checks, where the kit's agents and CI use them.
 
@@ -25,7 +25,7 @@ stay updatable with `android skills update`. The list is in pack/official-skills
 param(
     [string] $Project,
 
-    [string[]] $Agents = @('claude', 'codex'),
+    [string[]] $Agents = @('claude-code', 'codex'),
 
     [switch] $WithTeamSkills,
 
@@ -52,8 +52,8 @@ $teamSkillDirs = Get-ChildItem -LiteralPath (Join-Path $pluginRoot 'skills') -Di
     Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'SKILL.md') }
 
 $agentSkillFolders = @{
-    'claude' = '.claude/skills'
-    'codex'  = '.agents/skills'
+    'claude-code' = '.claude/skills'
+    'codex'       = '.agents/skills'
 }
 
 function Invoke-Step([string] $Description, [scriptblock] $Action) {

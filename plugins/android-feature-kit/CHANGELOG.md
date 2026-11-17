@@ -14,6 +14,7 @@ How the kit is triggered and who decides changed. The main conversation coordina
 - One kit run per checkout: `scope.json` now carries the session id. While it belongs to another session, no writing agent can start and no session can replace the file; you release a stale one by deleting it. The kit's agents never write in `build/android-feature-kit/`. `develop` deletes its own scope when it reports.
 - `GUIA.md`: a step-by-step guide in Spanish to install the kit in an app and use it, with examples. `GUIA.html` is the same guide as a page, with the agent types and the flow, published at https://pfranccino.github.io/pfranccino-dev-skills/ by the repository's `.github/workflows/pages.yml` on every change to it in `main`.
 - The plugin is for Claude Code only: the Codex plugin manifest, the Codex marketplace file and the skills' `agents/openai.yaml` were removed.
+- `install-pack` passes `claude-code` to Android CLI instead of `claude`, which Android CLI 1.1 rejects as an invalid agent. The `-Agents` / `--agents` value for Claude is now `claude-code`.
 
 ## 0.3.0 (unreleased)
 

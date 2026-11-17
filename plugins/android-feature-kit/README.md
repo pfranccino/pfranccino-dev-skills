@@ -341,7 +341,7 @@ Then clone this repository and run the script from its root:
 bash plugins/android-feature-kit/scripts/install-pack.sh
 ```
 
-Without a project path, the script installs the official skills globally for Claude Code and Codex. It runs `android skills add --agent=claude,codex <id>` for each skill in [`pack/official-skills.txt`](pack/official-skills.txt), so you can also run those commands by hand.
+Without a project path, the script installs the official skills globally for Claude Code and Codex. It runs `android skills add --agent=claude-code,codex <id>` for each skill in [`pack/official-skills.txt`](pack/official-skills.txt), so you can also run those commands by hand.
 
 ### Alternative: everything inside an app repository
 
@@ -368,7 +368,7 @@ Every option has a dry run: `-DryRun` / `--dry-run`.
 ## Update
 
 - The plugin: in `/plugin`, open `android-feature-kit` on the **Installed** tab and choose **Update now**, or run `claude plugin update android-feature-kit@pfranccino-dev-skills` in a shell. Then run `/reload-plugins` or restart Claude Code. `/plugin marketplace update pfranccino-dev-skills` only refreshes the listing. If you copied the kit's skills into an app, run the script again.
-- Official skills: `android skills update --all --agent=claude,codex`. Add `--project=<app>` if you installed them into an app.
+- Official skills: `android skills update --all --agent=claude-code,codex`. Add `--project=<app>` if you installed them into an app.
 
 ## Changing a skill
 
