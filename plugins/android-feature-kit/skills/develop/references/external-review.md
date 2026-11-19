@@ -63,7 +63,7 @@ Drop the last two lines when the command passes `{schema}` to a tool that enforc
 
 ## Later rounds
 
-The round 1 prompt, with the round number and identity updated, followed by:
+The round 1 prompt, with the round number and identity updated and the decisions list brought up to date with what the user decided since, followed by:
 
 ```
 This is round <n>. Your previous findings, as you reported them:
@@ -72,5 +72,10 @@ Responses to your findings:
 - C1: fixed: <what changed and where>
 - C2: disputed: <why, with evidence>
 - C3: deferred: <why>
+- C4: accepted: <the user keeps it as it is, and why>
+Accepted exceptions from every earlier round. The user accepted or deferred these findings; do not report them again as new findings. If a later change means one no longer holds, report it again with its original ID and say what changed:
+- C3 (round 1): deferred: <reason>
 Check each response, and look for problems the fixes introduced. Put each previous ID in `responses_to_previous`, and continue the numbering for new findings.
 ```
+
+The accepted exceptions list covers the whole review: each round adds the findings the user accepted or deferred in it, and no entry is dropped. Each later round starts from the round 1 prompt, so the prompt repeats only the previous round's findings and responses, and the list carries what came before.

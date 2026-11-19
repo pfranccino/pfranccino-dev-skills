@@ -127,6 +127,9 @@ class Shell(GuardTest):
 
     def test_check_scripts(self):
         self.assertIsNone(self.shell("python3 tools/agent-checks/gradle_summary.py -- ./gradlew :feature:orders:compileDebugKotlin"))
+        self.assertIsNone(self.shell("python3 tools/agent-checks/gradle_summary.py --timeout 9 -- ./gradlew :app:connectedDebugAndroidTest"))
+        self.assertIsNone(self.shell("python3 tools/agent-checks/gradle_summary.py --timeout=0 --max 5 -- ./gradlew :app:assembleDebug"))
+        self.assertIsNone(self.shell(r'"C:\Users\x\AppData\Local\Android\android.exe" docs search room'))
         plugin_copy = layer_guard.PLUGIN_ROOT / "repo-tools" / "agent-checks" / "test_summary.py"
         self.assertIsNone(self.shell(f'python "{plugin_copy}" --module feature/orders'))
         self.assertIsNotNone(self.shell("python3 tools/agent-checks/gradle_summary.py -- rm -rf build"))

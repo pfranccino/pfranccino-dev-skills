@@ -27,7 +27,7 @@ Build every module you changed through the check script, and read its JSON summa
 python3 tools/agent-checks/gradle_summary.py -- ./gradlew :<module>:compileDebugKotlin
 ```
 
-Use `python` and `.\gradlew.bat` on Windows, and the plugin's copy at `${CLAUDE_PLUGIN_ROOT}/repo-tools/agent-checks/` if the repository has none.
+Use `python` and `.\gradlew.bat` on Windows, and the plugin's copy at `${CLAUDE_PLUGIN_ROOT}/repo-tools/agent-checks/` if the repository has none. Give each Gradle call the shell's longest timeout (600000 ms). For a failure you could not fix, copy the summary's `status`, `next_step` and `raw_log_path` into CHECKS.
 
 ## Reply
 

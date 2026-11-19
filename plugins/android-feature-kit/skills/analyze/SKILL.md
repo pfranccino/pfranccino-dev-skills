@@ -18,6 +18,8 @@ Read `.claude/android-feature-kit.md` in the repository, if it exists. Its explo
 
 Anything beyond those limits is proposed first, in one short message: which agent or tool, on which model, what it runs, and what it writes. Gradle builds, test runs, module maps and codegraph indexes write their own output (build folders, `docs/architecture/`, `.codegraph/`) even though they do not change source files, so they are always proposed. Wait for the user's answer before running them.
 
+When a check fails or times out (its summary's `next_step` names an agent, and the kit's hook adds a note that names it), propose that agent before you investigate the failure yourself.
+
 ## Route the question
 
 | The user wants | Propose |

@@ -47,7 +47,7 @@ Brief: <none | the ticket link | docs/features/<feature>/<task-id>.md, and why>
 Agents: domain-builder (sonnet), data-builder (haiku), ui-builder (sonnet), feature-integrator (sonnet)
 Work: <per agent: what it creates or changes; the order; which ones run in parallel>
 Integration: <changes outside the feature's layers known now: Gradle, version catalog, the app's NavHost, shared providers> | none
-Checks: <the builds and tests each agent runs; build-doctor and test-analyst (haiku) diagnose failures>
+Checks: <the builds and tests each agent runs; build-doctor and test-analyst (haiku) diagnose failures and hangs before anyone else investigates them>
 Review: <android-reviewer, or the external reviewer configured in .claude/android-feature-kit.json>, up to <n> rounds
 Stop and ask when: <a new decision appears, an agent asks to change tier, an escalation is needed, the review needs more rounds>
 ```
@@ -103,11 +103,16 @@ Outside an approved small change, never edit application code yourself to save a
 
 ## 4. Verify
 
-Every agent builds and tests its module. When a failure remains that its owner could not fix:
+Every agent builds and tests its module. When you run a check yourself (an approved small change, or after integration), run it through `gradle_summary.py` with the shell's longest timeout (600000 ms); connected tasks stop after 9 minutes with `status: "timeout"`.
 
-- compile, KSP, resource or dependency errors: `build-doctor` with the check summary;
+The plan's Checks line approves the diagnosis agents. When a failure remains that its owner could not fix, or a check of yours fails or hangs, send it to them before you investigate it yourself:
+
+- compile, KSP, resource, dependency or Gradle configuration errors, and environment failures (an emulator or device that goes offline, an install or a connected test that hangs or times out, a missing SDK or JDK): `build-doctor` with the check summary;
 - failing tests: `test-analyst` with the module path;
+- the summary's `next_step` names the agent, and after a failing check the kit's hook adds a note that names it too;
 - then send the proposed fix to the owner named in the diagnosis, when it stays inside the approved plan. A fix that changes the plan (a dependency or version, a contract, files outside the plan) is asked first.
+
+When the diagnosis agent cannot run what the failure needs (it has no `adb` and no network), it says what it could not check. You complete that check after its diagnosis, not before.
 
 Ask the user before calling `android-architect` when the same error survives two fixes, when a diagnosis says ESCALATE, when the reviewer marks a finding as a design problem, or when two agents need contradictory contracts. A missing product decision goes to the user, not to a bigger model.
 
@@ -117,7 +122,7 @@ Run the reviewer the plan names, up to the approved number of rounds.
 
 Every review round is tied to one exact change. Before each round, run `python3 ${CLAUDE_SKILL_DIR}/references/review_target.py` from the repository root (`python` on Windows; add a range such as `main...HEAD` to review commits instead of the working tree). It prints `source_revision` and `diff_hash`. Give the review a `run_id` (for example `review-<date>-<time>`), the same in every round. The working-tree target covers staged and unstaged changes (`git diff HEAD`) plus untracked files. `rules_version` is the kit's version, the content of `${CLAUDE_SKILL_DIR}/references/VERSION`.
 
-- **`android-reviewer`**: give it the target, its identity, the task, the brief, the decisions and the modules, and in later rounds its previous findings with your responses.
+- **`android-reviewer`**: give it the target, its identity, the task, the brief, the decisions and the modules. In later rounds, also give it its previous findings with your responses, and every finding the user accepted or deferred in any earlier round, with its ID and the reason, so that it does not report them again as new.
 - **External reviewer**: follow `references/external-review.md`. You write the prompt to `build/android-feature-kit/review/round-<n>-prompt.md` and run `run_review.py`, which calls the configured command and checks the answer against `references/review.schema.json` and the identity.
 
 After each round, show the user the findings. Fixes for findings go to their owners once the user approves them; a finding you would dispute or defer goes to the user with your reason. Accept a READY verdict only if the answer repeats the identity you sent (run id, round, source revision, diff hash, rules version), and a fresh `review_target.py` run for the same target prints the same `source_revision` and `diff_hash`, and `references/VERSION` is unchanged. If anything moved after the review started, the next round checks it. Keep the flow's own files (scope, prompts, answers, logs) in `build/android-feature-kit/`: `review_target.py` leaves that folder out of the identity.
@@ -132,6 +137,7 @@ Tell the user, briefly:
 - the decisions taken and where they are recorded (brief path or ticket);
 - contract changes and changes outside the module;
 - the checks run and the ones that could not run;
+- the failures: each one, the agent that diagnosed it, and why no agent did when you diagnosed it yourself (or "none" when nothing failed);
 - the review verdict and anything left open.
 
 Then, if `build/android-feature-kit/scope.json` still holds this session's id, delete it, so another session can run a task in this checkout.

@@ -9,6 +9,8 @@ given result folders. For each failing test it reports the class, the test, the 
 message, and the first stack frame in the project's own code. Exit code: 0 when every test
 passed, 1 when some failed, 2 when no reports were found or some could not be read.
 
+`next_step` is `test-analyst` when some test failed, and null otherwise.
+
 Standard library only, Python 3.8+.
 """
 from __future__ import annotations
@@ -23,7 +25,8 @@ import subprocess
 import sys
 import xml.etree.ElementTree as ElementTree
 
-SCRIPT_VERSION = "1"
+SCRIPT_VERSION = "2"
+SCHEMA_VERSION = 2
 FRAME = re.compile(r"^\s*at ([\w.$<>]+)\.([\w$<>-]+)\(([\w$.-]+\.(?:kt|java)):(\d+)\)")
 LIBRARY_PREFIXES = (
     "java.", "javax.", "jdk.", "sun.", "kotlin.", "kotlinx.", "org.junit.", "junit.", "org.gradle.",
@@ -114,12 +117,13 @@ def main(argv: list[str]) -> int:
     else:
         status, exit_code = "passed", 0
     summary = {
-        "schema_version": 1,
+        "schema_version": SCHEMA_VERSION,
         "source_revision": source_revision(root),
         "command": None,
         "tool_versions": {"test_summary": SCRIPT_VERSION, "python": platform.python_version()},
         "status": status,
         "exit_code": exit_code,
+        "next_step": "test-analyst" if status == "failed" else None,  # near the top, so it survives a cut
         **result,
         "reports_scanned": len(files),
         "note": "No JUnit XML reports found. Run the tests first, or pass --results." if not files else

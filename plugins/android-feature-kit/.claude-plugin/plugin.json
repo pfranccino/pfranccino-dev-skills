@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "android-feature-kit",
   "displayName": "Android Feature Kit",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Android feature development for Claude Code: team-rule skills for every layer (Navigation Compose 2, MVI with Compose, pure Kotlin domain, offline-first data, Room 3, DataStore), layer agents that the main conversation coordinates after you approve the plan, an analysis flow that does not change source, and guardrail hooks that keep the agents inside their layer.",
   "author": {
     "name": "pfranccino",

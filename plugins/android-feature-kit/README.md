@@ -73,14 +73,16 @@ Every layer skill has `references/rules.md`: each of its rules with a stable ID 
 
 ### The hooks
 
-`hooks/claude-hooks.json` runs two scripts in Claude Code.
+`hooks/claude-hooks.json` runs three scripts in Claude Code.
 
 `hooks/layer_guard.py` runs before every edit and shell command. It acts on the kit's agents:
 
 - Each layer agent writes only inside its layer's packages; the integrator writes outside the feature modules' sources, plus their manifests; the read-only agents write nothing. Paths are resolved first, so `..` and paths outside the project are blocked.
 - Their shell commands must be the Gradle wrapper, read-only git without write or exec options, read-only file tools, Android CLI queries or the kit's check scripts, with no redirection to files, command substitution or PowerShell script blocks.
 
-It also stops every session, the main one included, from writing the plan gate's record (`build/android-feature-kit/approved-plan.json`) and from replacing a scope file that belongs to another session. The kit's agents never write in `build/android-feature-kit/`.
+The agents start in the main session's working directory, and `cd` is not one of their commands, so keep the main session at the repository root while they work. `gradle_summary.py` finds the Gradle wrapper in a parent folder when the working directory has none.
+
+The layer guard also stops every session, the main one included, from writing the plan gate's record (`build/android-feature-kit/approved-plan.json`) and from replacing a scope file that belongs to another session. In the shell it blocks any command that names the record, or another session's scope file, even as text; to write a file that only mentions them, use the Write tool. The kit's agents never write in `build/android-feature-kit/`.
 
 After you approve the plan, `develop` writes the task's feature modules and the session id to `build/android-feature-kit/scope.json`, and deletes the file when it reports. With it, the layer agents write only inside those modules, and the integrator only outside their `src/` folders, except their `AndroidManifest.xml` files; without it, the integrator writes nothing. A project can replace the layer patterns in `.claude/android-feature-kit.json` (see the docstring of `layer_guard.py`).
 
@@ -89,11 +91,13 @@ After you approve the plan, `develop` writes the task's feature modules and the 
 - One kit run per checkout. While `scope.json` belongs to another session, no writing agent can start and Claude cannot replace the file. Claude tells you; if that run is over, you delete the file (for example with `! rm build/android-feature-kit/scope.json`).
 - The plan gate, off by default. With `{"planGate": true}` in `.claude/android-feature-kit.json`, approving a plan in Plan Mode records the agents on the plan's `Agents:` line, including your edits to the plan, and a writing agent that the plan approved in this session does not list, or that would run on another model than the plan gives it, is blocked. It has unit tests but has not run in a live session yet, which is why it is opt-in.
 
-Both hooks need Python 3.8 or later; without Python they let calls through. They are guardrails, not a sandbox. They block the usual ways an agent writes files through the shell, but Gradle runs the project's own build logic, and a determined command can find other ways. The app repository's own checks (pre-commit, CI) remain the boundary.
+`hooks/failure_router.py` runs after shell commands and after agents return, in the main session only. When a check script reports a failure or a timeout, or a writing agent returns STATUS failed or blocked with a failing check, it adds a note for Claude: the diagnosis goes to `build-doctor` or `test-analyst` (the summary's `next_step`) before Claude investigates it. The note launches nothing. Claude calls the agent when the approved plan includes it, which a develop plan's Checks line does, and proposes it to you otherwise. A shell command that exits with an error is a failed tool call for Claude Code, so the script listens to `PostToolUseFailure` as well as `PostToolUse`. Checks run in the background are not covered: their result arrives as a notification, not as a tool call.
+
+The hooks need Python 3.8 or later; without Python they let calls through. They are guardrails, not a sandbox. They block the usual ways an agent writes files through the shell, but Gradle runs the project's own build logic, and a determined command can find other ways. The app repository's own checks (pre-commit, CI) remain the boundary.
 
 ### Check scripts
 
-[`repo-tools/agent-checks`](repo-tools/agent-checks/README.md) has `gradle_summary.py` and `test_summary.py`. They turn Gradle output and JUnit reports into a short JSON summary that agents, people and CI read the same way, and keep the raw log as evidence. They belong in the app repository at `tools/agent-checks/`; the install script copies them there with `--with-repo-tools`.
+[`repo-tools/agent-checks`](repo-tools/agent-checks/README.md) has `gradle_summary.py` and `test_summary.py`. They turn Gradle output and JUnit reports into a short JSON summary that agents, people and CI read the same way, and keep the raw log as evidence. They belong in the app repository at `tools/agent-checks/`; the install script copies them there with `--with-repo-tools`. Each summary names the agent that diagnoses a failure in `next_step`, and `gradle_summary.py --timeout <minutes>` stops a command that hangs; connected tasks stop after 9 minutes by default. On an emulator with API 37, connected tests needed platform-tools 37 or newer: an older `adb` left the emulator `offline`.
 
 ### External reviewer
 
@@ -328,6 +332,8 @@ Install [Android CLI](https://developer.android.com/tools/agents/android-cli) an
 | macOS, Apple silicon | `curl -fsSL https://dl.google.com/android/cli/latest/darwin_arm64/install.sh \| bash` |
 | macOS, Intel | `curl -fsSL https://dl.google.com/android/cli/latest/darwin_x86_64/install.sh \| bash` |
 | Linux x86-64 | `curl -fsSL https://dl.google.com/android/cli/latest/linux_x86_64/install.sh \| bash` |
+
+Restart Claude Code after installing it. A session opened before the install, and the agents it launches, do not find `android` on the PATH.
 
 Then clone this repository and run the script from its root:
 

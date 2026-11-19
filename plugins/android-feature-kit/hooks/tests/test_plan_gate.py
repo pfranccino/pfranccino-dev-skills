@@ -253,6 +253,8 @@ class KitRecordProtection(PlanGateTest):
     def test_shell_commands_cannot_touch_it(self):
         self.assertIn("Only the plan gate", self.guard("Bash", {"command": "echo '{}' > build/android-feature-kit/approved-plan.json"}))
         self.assertIn("Only the plan gate", self.guard("PowerShell", {"command": "Remove-Item build\\android-feature-kit\\Approved-Plan.json"}))
+        heredoc = "cat > build/notes.md <<'EOF'\nThe plan gate reads approved-plan.json.\nEOF"
+        self.assertIn("use the Write tool", self.guard("Bash", {"command": heredoc}))
 
     def test_other_files_are_untouched(self):
         self.assertIsNone(self.guard("Write", {"file_path": os.path.join(self.project, "build", "android-feature-kit", "scope.json")}))
