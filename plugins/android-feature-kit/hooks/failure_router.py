@@ -235,7 +235,9 @@ def shell_note(event: dict) -> str | None:
     routed = [(agent, summary) for agent, summary in routed if agent]
     if routed:
         agent, summary = routed[-1]
-        what = "The check timed out." if summary.get("status") == "timeout" else "The check failed."
+        what = {"timeout": "The check timed out.",
+                "device_unavailable": "No device was ready, so Gradle did not run."}.get(summary.get("status"),
+                                                                                         "The check failed.")
         log = summary.get("raw_log_path")
         evidence = f"the summary and its log ({log})" if log else "the summary"
         return note(agent, what, evidence)

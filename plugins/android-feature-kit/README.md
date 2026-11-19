@@ -97,7 +97,7 @@ The hooks need Python 3.8 or later; without Python they let calls through. They 
 
 ### Check scripts
 
-[`repo-tools/agent-checks`](repo-tools/agent-checks/README.md) has `gradle_summary.py` and `test_summary.py`. They turn Gradle output and JUnit reports into a short JSON summary that agents, people and CI read the same way, and keep the raw log as evidence. They belong in the app repository at `tools/agent-checks/`; the install script copies them there with `--with-repo-tools`. Each summary names the agent that diagnoses a failure in `next_step`, and `gradle_summary.py --timeout <minutes>` stops a command that hangs; connected tasks stop after 9 minutes by default. On an emulator with API 37, connected tests needed platform-tools 37 or newer: an older `adb` left the emulator `offline`.
+[`repo-tools/agent-checks`](repo-tools/agent-checks/README.md) has `gradle_summary.py` and `test_summary.py`. They turn Gradle output and JUnit reports into a short JSON summary that agents, people and CI read the same way, and keep the raw log as evidence. They belong in the app repository at `tools/agent-checks/`; the install script copies them there with `--with-repo-tools`. Each summary names the agent that diagnoses a failure in `next_step`, and `gradle_summary.py --timeout <minutes>` stops a command that hangs; connected tasks stop after 9 minutes by default. Before connected tasks, `gradle_summary.py` checks with adb that a device is ready, and stops in under a second with `status: "device_unavailable"` when none is; it never restarts adb on its own. On an emulator with API 37, connected tests needed platform-tools 37 or newer: an older `adb` left the emulator `offline`.
 
 ### External reviewer
 

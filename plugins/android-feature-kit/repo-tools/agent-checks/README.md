@@ -19,6 +19,8 @@ Options: `--out DIR` for the log folder (default `build/agent-checks`), `--max N
 
 An agent's shell call has its own limit: 2 minutes by default and 10 at most in Claude Code. Give Gradle runs the longest one (600000 ms), so the script stops a hang and prints its summary before the shell call is cut.
 
+Before connected tasks, the script checks the device with adb (the SDK's, from `local.properties`, `ANDROID_HOME` or `ANDROID_SDK_ROOT`, else the PATH): at least one device in the `device` state, or the one `ANDROID_SERIAL` names, that has finished booting. When none is ready, Gradle does not run. The summary says `status: "device_unavailable"`, `device_check` holds what adb reported, and the script exits with 125, in under a second instead of waiting for the timeout. It warns when adb is older than the device's Android version. It never restarts adb, because that disconnects Android Studio and other sessions; the note proposes it and the user decides. `--no-device-check` skips the check, and without adb the check is skipped.
+
 ## test_summary.py
 
 Reads the JUnit XML reports of a module and prints each failing test with its message and the first stack frame in the project's own code. Exit code 0 when every test passed, 1 when some failed, 2 when there are no reports.
@@ -39,12 +41,13 @@ Both scripts print the same top-level fields:
 | `source_revision` | `head` commit and whether the working tree was `dirty` |
 | `command` | The command that ran (`null` for test_summary) |
 | `tool_versions` | Script and Python versions |
-| `status` | `passed` or `failed`; `timeout` for gradle_summary; `no_results` or `incomplete` for test_summary |
+| `status` | `passed` or `failed`; `timeout` or `device_unavailable` for gradle_summary; `no_results` or `incomplete` for test_summary |
 | `exit_code` | The command's exit code, or the script's for test_summary |
 | `failures` | The recognized errors or failing tests, up to `--max` |
 | `raw_log_path` | gradle_summary only: the full log, kept as evidence |
 | `working_directory`, `timeout_minutes` | gradle_summary only: where Gradle ran, and the time limit applied (`null` for none) |
-| `next_step` | The kit agent that diagnoses the result: `test-analyst` when only test tasks failed, `build-doctor` for any other failure or a timeout, `null` when nothing failed |
+| `device_check` | gradle_summary only, for connected tasks: what the adb check found (`null` when it did not run) |
+| `next_step` | The kit agent that diagnoses the result: `test-analyst` when only test tasks failed, `build-doctor` for any other failure, a timeout or an unavailable device, `null` when nothing failed |
 | `note` | What to do when nothing was recognized, or a caution |
 
 When a command fails and no error line is recognized, `failures` is empty and `note` says to read the raw log. A summary never claims more than the log shows.

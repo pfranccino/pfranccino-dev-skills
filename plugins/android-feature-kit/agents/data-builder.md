@@ -39,7 +39,7 @@ Build and test the module through the check script, and read its JSON summary in
 python3 tools/agent-checks/gradle_summary.py -- ./gradlew :<module>:compileDebugKotlin :<module>:testDebugUnitTest
 ```
 
-Use `python` and `.\gradlew.bat` on Windows. If the repository has no `tools/agent-checks/`, use the plugin's copy at `${CLAUDE_PLUGIN_ROOT}/repo-tools/agent-checks/`. Open `raw_log_path` only when the summary recognized nothing. When tests fail, run `test_summary.py --module <module path>` the same way. Migration tests need a device or Gradle Managed Device; say so when none is available. Give each Gradle call the shell's longest timeout (600000 ms); connected tests stop after 9 minutes with `status: "timeout"`. Fix failures in your layer; report failures in other layers. For a failure you could not fix, copy the summary's `status`, `next_step` and `raw_log_path` into CHECKS.
+Use `python` and `.\gradlew.bat` on Windows. If the repository has no `tools/agent-checks/`, use the plugin's copy at `${CLAUDE_PLUGIN_ROOT}/repo-tools/agent-checks/`. Open `raw_log_path` only when the summary recognized nothing. When tests fail, run `test_summary.py --module <module path>` the same way. Migration tests need a device or Gradle Managed Device; say so when none is available. Give each Gradle call the shell's longest timeout (600000 ms); connected tests do not start without a ready device (`status: "device_unavailable"`) and stop after 9 minutes (`status: "timeout"`). Fix failures in your layer; report failures in other layers. For a failure you could not fix, copy the summary's `status`, `next_step` and `raw_log_path` into CHECKS.
 
 ## Reply
 

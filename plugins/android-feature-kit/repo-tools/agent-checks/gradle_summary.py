@@ -17,8 +17,17 @@ A wrapper path such as `./android/gradlew` runs as given.
 minutes unless `--timeout` says otherwise, so a device that never answers ends with a summary before
 a 10-minute shell call does. `--timeout 0` turns the limit off.
 
+Before connected tasks, the script checks the device with adb (the SDK's, from local.properties,
+ANDROID_HOME or ANDROID_SDK_ROOT, else the PATH): at least one device in the `device` state, or the
+one ANDROID_SERIAL names, that has finished booting. When none is ready, Gradle does not run: the
+summary says `status: "device_unavailable"` with what adb reported in `device_check`, and the script
+exits with 125. It also warns when adb is older than the device's Android version. It never restarts
+adb: that disconnects Android Studio and other sessions, so the note proposes it and the user
+decides. `--no-device-check` skips the check; without adb it is skipped with a note.
+
 `next_step` names the kit agent that diagnoses the result: `test-analyst` when only test tasks
-failed, `build-doctor` for every other failure and for a timeout, and null when the command passed.
+failed, `build-doctor` for every other failure, a timeout or an unavailable device, and null when
+the command passed.
 
 Standard library only, Python 3.8+.
 """
@@ -30,6 +39,7 @@ import json
 import os
 import platform
 import re
+import shutil
 import signal
 import subprocess
 import sys
@@ -42,6 +52,9 @@ SCHEMA_VERSION = 2
 CONNECTED_TIMEOUT_MINUTES = 9.0
 EXTERNAL_STOP_GRACE_SECONDS = 5
 TIMEOUT_EXIT_CODE = 124
+DEVICE_EXIT_CODE = 125
+ADB_TIMEOUT_SECONDS = 20
+ADB_VERSION = re.compile(r"Version (\d+)\.\S*")
 WRAPPERS = ("gradlew", "gradlew.bat")
 WRAPPER = "gradlew.bat" if os.name == "nt" else "gradlew"
 TEST_TASK = re.compile(r"^(?:test|connected\w*|\w*UnitTest|\w*AndroidTest)$", re.IGNORECASE)
@@ -165,9 +178,113 @@ def resolve_wrapper(word: str, cwd: str) -> tuple[str, str]:
     return os.path.join(folder, WRAPPER), cwd
 
 
-def default_timeout(command: list[str]) -> float | None:
+def is_connected(command: list[str]) -> bool:
+    """Whether the command runs a connected task (`connected*`), which needs a device."""
     tasks = [word.rsplit(":", 1)[-1].lower() for word in command[1:] if not word.startswith("-")]
-    return CONNECTED_TIMEOUT_MINUTES if any(task.startswith("connected") for task in tasks) else None
+    return any(task.startswith("connected") for task in tasks)
+
+
+def default_timeout(command: list[str]) -> float | None:
+    return CONNECTED_TIMEOUT_MINUTES if is_connected(command) else None
+
+
+def sdk_dirs(root: str) -> list[str]:
+    """The Android SDK folders Gradle would use, in order: local.properties, ANDROID_HOME, ANDROID_SDK_ROOT."""
+    dirs = []
+    try:
+        with open(os.path.join(root, "local.properties"), encoding="utf-8") as handle:
+            for line in handle:
+                key, _, value = line.partition("=")
+                if key.strip() == "sdk.dir" and value.strip():
+                    dirs.append(value.strip().replace("\\:", ":").replace("\\\\", "\\"))
+    except OSError:
+        pass
+    return dirs + [os.environ[name] for name in ("ANDROID_HOME", "ANDROID_SDK_ROOT") if os.environ.get(name)]
+
+
+def find_adb(root: str) -> str | None:
+    name = "adb.exe" if os.name == "nt" else "adb"
+    for sdk in sdk_dirs(root):
+        path = os.path.join(sdk, "platform-tools", name)
+        if os.path.isfile(path):
+            return path
+    return shutil.which("adb")
+
+
+def adb_call(adb: str, *args: str, serial: str | None = None) -> tuple[int | None, str]:
+    """Run adb with a time limit; return its exit code (None when it did not answer) and its output."""
+    command = [adb, *(["-s", serial] if serial else []), *args]
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, timeout=ADB_TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired:
+        return None, f"adb {' '.join(args)} did not answer in {ADB_TIMEOUT_SECONDS} seconds"
+    except OSError as error:
+        return None, f"could not run adb: {error}"
+    return result.returncode, (result.stdout or "") + (result.stderr or "")
+
+
+def parse_devices(text: str) -> list[dict]:
+    devices = []
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith(("List of devices", "*", "adb ")):
+            continue
+        parts = line.split()
+        if len(parts) >= 2:
+            devices.append({"serial": parts[0], "state": parts[1]})
+    return devices
+
+
+def check_devices(root: str, call=adb_call, adb: str | None = None) -> dict:
+    """Whether a device is ready for connected tasks. Reads only; it never restarts adb or the emulator."""
+    adb = adb or find_adb(root)
+    if not adb:
+        return {"result": "skipped", "problem": None, "warnings": [],
+                "note": "adb was not found in the SDK (local.properties, ANDROID_HOME) or on the PATH; no device check."}
+    check = {"result": "passed", "adb": adb.replace("\\", "/"), "adb_version": None, "devices": [], "problem": None,
+             "warnings": [], "output": []}
+    _, version_text = call(adb, "version")
+    version = ADB_VERSION.search(version_text or "")
+    check["adb_version"] = version.group(0).split(" ", 1)[1] if version else None
+    code, devices_text = call(adb, "devices")
+    check["output"].append(devices_text.strip())
+    if code != 0:
+        check.update(result="failed", problem=f"adb devices failed: {devices_text.strip()[:300]}")
+        return check
+    devices = parse_devices(devices_text)
+    wanted = os.environ.get("ANDROID_SERIAL")
+    if wanted:
+        devices = [d for d in devices if d["serial"] == wanted] or [{"serial": wanted, "state": "not connected"}]
+    for device in devices:
+        if device["state"] == "device":
+            _, boot = call(adb, "shell", "getprop", "sys.boot_completed", serial=device["serial"])
+            _, sdk = call(adb, "shell", "getprop", "ro.build.version.sdk", serial=device["serial"])
+            device["boot_completed"] = boot.strip() == "1"
+            device["sdk"] = int(sdk.strip()) if sdk.strip().isdigit() else None
+    check["devices"] = devices
+    ready = [d for d in devices if d["state"] == "device" and d.get("boot_completed")]
+    if not devices:
+        check["problem"] = "no device or emulator is connected"
+    elif not ready:
+        states = ", ".join(f"{d['serial']} is {'still booting' if d['state'] == 'device' else d['state']}"
+                           for d in devices)
+        check["problem"] = f"no device is ready: {states}"
+    major = int(version.group(1)) if version else None
+    newest = max((d.get("sdk") or 0 for d in devices), default=0)
+    if major and newest and major < newest:
+        check["warnings"].append(f"adb {check['adb_version']} is older than the device's API {newest}; an older adb "
+                                 "can leave a newer emulator offline. Update platform-tools.")
+    if check["problem"]:
+        check["result"] = "failed"
+    return check
+
+
+def device_note(check: dict) -> str:
+    version = f" (this adb is {check['adb_version']})" if check.get("adb_version") else ""
+    return (f"Gradle did not run: {check['problem']}. Usual fixes, which the user decides, because restarting adb "
+            "disconnects Android Studio and other sessions: `adb kill-server` then `adb start-server`; start or unlock "
+            f"the emulator and wait until it finishes booting; accept the debugging prompt on a device; update "
+            f"platform-tools{version}.")
 
 
 def stop_tree(process: subprocess.Popen) -> None:
@@ -266,6 +383,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--out", default=os.path.join("build", "agent-checks"))
     parser.add_argument("--max", type=int, default=20)
     parser.add_argument("--timeout", type=float, default=None, help="minutes; 0 turns the limit off")
+    parser.add_argument("--no-device-check", action="store_true", help="skip the adb check before connected tasks")
     options = parser.parse_args(argv[:split])
     command = argv[split + 1:]
     if not command:
@@ -281,6 +399,26 @@ def main(argv: list[str]) -> int:
     os.makedirs(out, exist_ok=True)
     stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     log_path = os.path.join(out, f"gradle-{stamp}-{os.getpid()}-{uuid.uuid4().hex[:8]}.log")
+    check = check_devices(root) if is_connected(command) and not options.no_device_check else None
+    if check and check["result"] == "failed":
+        with open(log_path, "w", encoding="utf-8") as handle:
+            handle.write(f"[gradle_summary] Device check before {' '.join(command)}\n{json.dumps(check, indent=2)}\n")
+        summary = {
+            "schema_version": SCHEMA_VERSION,
+            "source_revision": source_revision(root),
+            "command": command,
+            "working_directory": root.replace("\\", "/"),
+            "tool_versions": {"gradle_summary": SCRIPT_VERSION, "python": platform.python_version()},
+            "status": "device_unavailable",
+            "exit_code": DEVICE_EXIT_CODE,
+            "next_step": "build-doctor",
+            "raw_log_path": to_path(os.path.abspath(log_path), root),
+            "device_check": check,
+            **parse("", root, options.max),
+            "note": device_note(check),
+        }
+        print(json.dumps(summary, indent=2, ensure_ascii=False))
+        return DEVICE_EXIT_CODE
     exit_code, timed_out = run(run_command, root, log_path, minutes)
     with open(log_path, "rb") as handle:
         output = handle.read().decode("utf-8", errors="replace")
@@ -297,6 +435,7 @@ def main(argv: list[str]) -> int:
         "next_step": next_step(status, parsed),  # near the top, so it survives when long output is cut
         "raw_log_path": to_path(os.path.abspath(log_path), root),
         "timeout_minutes": minutes,
+        "device_check": check,
         **parsed,
         "note": None,
     }
