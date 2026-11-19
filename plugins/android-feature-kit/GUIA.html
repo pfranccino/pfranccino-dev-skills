@@ -214,7 +214,7 @@ footer { margin-top: 64px; padding-top: 22px; border-top: 1px solid var(--line);
       <svg viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" rx="4" fill="#F2C230"/><path fill="#15181B" fill-rule="evenodd" d="M24 20H56C68.7 20 77 28.4 77 40.5C77 52.6 68.7 61 56 61H43V80H24ZM43 35V46H54C58 46 60 44 60 40.5C60 37 58 35 54 35Z"/></svg>
       <span>Android Feature Kit</span>
     </a>
-    <span class="version">Guía de uso · plugin 0.4.0</span>
+    <span class="version">Guía de uso · plugin 0.4.1</span>
   </header>
 
   <div class="hero" id="inicio">
@@ -379,7 +379,7 @@ footer { margin-top: 64px; padding-top: 22px; border-top: 1px solid var(--line);
     <div class="section-head">
       <p class="eyebrow">Hooks</p>
       <h2>Los guardias</h2>
-      <p>Dos scripts de Python 3.8 o superior corren antes de cada edición, comando o lanzamiento de agente. Son barandas, no un sandbox: la frontera real sigue siendo el pre-commit y la CI de la app.</p>
+      <p>Tres scripts de Python 3.8 o superior corren antes o después de cada edición, comando o agente. Son barandas, no un sandbox: la frontera real sigue siendo el pre-commit y la CI de la app.</p>
     </div>
     <div class="guards">
       <article class="card">
@@ -396,6 +396,14 @@ footer { margin-top: 64px; padding-top: 22px; border-top: 1px solid var(--line);
           <li>Una sola tarea del kit por checkout: si el alcance es de otra sesión, ningún agente que escribe arranca.</li>
           <li>Plan gate, apagado por defecto: bloquea a los agentes que escriben si no están en la línea <code>Agents:</code> del plan aprobado, o si correrían con otro modelo.</li>
           <li>Se enciende con <code>"planGate": true</code>. Todavía no se ha probado en sesiones reales.</li>
+        </ul>
+      </article>
+      <article class="card">
+        <h3><code>failure_router.py</code></h3>
+        <ul>
+          <li>Cuando un check falla o se agota, le deja a Claude una nota con el agente que lo diagnostica: <code>build-doctor</code> o <code>test-analyst</code>.</li>
+          <li>También cuando un agente que escribe vuelve con un check fallido que no pudo arreglar.</li>
+          <li>No lanza nada: en <code>develop</code> el plan ya aprueba a esos agentes; en <code>analyze</code>, Claude te los propone.</li>
         </ul>
       </article>
     </div>
@@ -420,7 +428,7 @@ footer { margin-top: 64px; padding-top: 22px; border-top: 1px solid var(--line);
         <div class="window"><div class="bar"><span class="file">CLAUDE.md</span><button class="copy" type="button">Copiar</button></div><pre><code><span class="c">&lt;!-- android-feature-kit:start --&gt;</span>
 <span class="k">## Android feature work (android-feature-kit)</span>
 
-Requests to build or change a feature (a new feature, screen, endpoint, entity or flow, a ticket to implement) go through the kit's `develop` skill. Questions about the code, failing builds or tests, reviews and architecture questions go through its `analyze` skill. A small change in one layer uses that layer's skill directly. Code changes, small ones included, start only after the user approves the plan in Plan Mode; analysis plans are approved in the conversation. The kit's limits and routine choices for this repository are in `.claude/android-feature-kit.md`.
+Requests to build or change a feature (a new feature, screen, endpoint, entity or flow, a ticket to implement) go through the kit's `develop` skill. Questions about the code, failing builds or tests, reviews and architecture questions go through its `analyze` skill. During kit work, a build, test or on-device check that fails or hangs goes first to the kit's `build-doctor` or `test-analyst`, before any diagnosis of your own. A small change in one layer uses that layer's skill directly. Code changes, small ones included, start only after the user approves the plan in Plan Mode; analysis plans are approved in the conversation. The kit's limits and routine choices for this repository are in `.claude/android-feature-kit.md`.
 <span class="c">&lt;!-- android-feature-kit:end --&gt;</span></code></pre></div>
       </div></li>
       <li><div class="body">
@@ -569,6 +577,11 @@ Requests to build or change a feature (a new feature, screen, endpoint, entity o
       <div><h3>Otra sesión tiene el checkout</h3><p>Solo una tarea del kit trabaja a la vez por checkout. Si la otra sesión ya terminó, borra el archivo tú con <code>! rm build/android-feature-kit/scope.json</code> y dile a Claude que siga. Claude no puede borrarlo por su cuenta.</p></div>
       <div><h3>El plan gate bloqueó un agente</h3><p>El plan aprobado no tenía ese agente en la línea <code>Agents:</code>, o iba a correr con otro modelo. Pídele que te muestre el plan de nuevo con el agente y su modelo entre paréntesis.</p></div>
       <div><h3>Los hooks no hacen nada</h3><p>Falta Python 3.8 o superior en el PATH. Sin Python, los hooks dejan pasar todo.</p></div>
+      <div><h3>Un check falló y Claude no llamó a build-doctor ni a test-analyst</h3><p>Desde la 0.4.1, un hook le deja a Claude una nota con el agente que corresponde. En <code>develop</code> lo llama sin preguntar, porque la línea <code>Checks:</code> del plan ya lo aprueba; en <code>analyze</code> te lo propone. El reporte final dice qué agente diagnosticó cada fallo. Si no pasó así, pídeselo, y revisa que la app tenga los scripts de chequeo de la 0.4.1.</p></div>
+      <div><h3>Los tests conectados se cuelgan o el emulador aparece offline</h3><p><code>gradle_summary.py</code> corta las tareas <code>connected*</code> a los 9 minutos y el caso va a <code>build-doctor</code>. Con un emulador API 37 hizo falta platform-tools 37 o más nuevo; con un <code>adb</code> más viejo el emulador quedaba <code>offline</code>.</p></div>
+      <div><h3>Un agente no encuentra android</h3><p>Instalaste Android CLI con Claude Code abierto. Reinicia Claude Code: la sesión y sus agentes leen el PATH al arrancar.</p></div>
+      <div><h3>La guarda bloqueó un comando que solo nombraba approved-plan.json</h3><p>Es a propósito: la guarda bloquea cualquier comando de shell que nombre ese archivo, aunque sea como texto, para que nadie fabrique una aprobación. Para escribir un archivo que solo lo menciona, Claude usa la herramienta Write.</p></div>
+      <div><h3>Un agente quedó en una subcarpeta</h3><p>Los agentes arrancan en el directorio de la conversación principal y no pueden hacer <code>cd</code>. Deja la conversación principal en la raíz del repositorio mientras trabajan.</p></div>
       <div><h3>El revisor externo falla</h3><p>Revisa que el comando de <code>.claude/android-feature-kit.json</code> exista en el PATH y mira el log en <code>build/android-feature-kit/review/</code>.</p></div>
     </div>
   </section>
@@ -595,7 +608,7 @@ Requests to build or change a feature (a new feature, screen, endpoint, entity o
   </section>
 
   <footer>
-    <span>pfranccino-dev-skills · android-feature-kit 0.4.0 · MIT</span>
+    <span>pfranccino-dev-skills · android-feature-kit 0.4.1 · MIT</span>
     <a href="https://github.com/pfranccino/pfranccino-dev-skills/tree/main/plugins/android-feature-kit">Repositorio en GitHub</a>
   </footer>
 </div>

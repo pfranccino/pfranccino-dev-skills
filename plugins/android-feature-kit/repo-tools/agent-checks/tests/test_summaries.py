@@ -5,6 +5,7 @@ import pathlib
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 
 HERE = pathlib.Path(__file__).resolve().parents[1]
@@ -120,7 +121,165 @@ class GradleFormats(unittest.TestCase):
             self.assertEqual(len(paths), 2)
 
 
+class GradleTimeoutAndNextStep(unittest.TestCase):
+    def run_script(self, root, body, *options):
+        script = os.path.join(root, "fake.py")
+        with open(script, "w", encoding="utf-8") as handle:
+            handle.write(body)
+        result = subprocess.run([sys.executable, str(HERE / "gradle_summary.py"), *options, "--", sys.executable, script],
+                                cwd=root, capture_output=True, text=True, timeout=120)
+        return result, json.loads(result.stdout)
+
+    def test_timeout_stops_the_command_and_names_build_doctor(self):
+        with tempfile.TemporaryDirectory() as root:
+            result, summary = self.run_script(root, "import time\nprint('started', flush=True)\ntime.sleep(60)\n",
+                                              "--timeout", "0.02")
+            self.assertEqual(result.returncode, 124)
+            self.assertEqual(summary["status"], "timeout")
+            self.assertEqual(summary["next_step"], "build-doctor")
+            self.assertEqual(summary["timeout_minutes"], 0.02)
+            with open(os.path.join(root, summary["raw_log_path"]), encoding="utf-8") as handle:
+                log = handle.read()
+            self.assertIn("started", log)
+            self.assertIn("Stopped after", log)
+
+    def test_next_step_follows_what_failed(self):
+        with tempfile.TemporaryDirectory() as root:
+            _, compile_error = self.run_script(root, "import sys\nprint('e: A.kt:3:1 Unresolved reference')\nsys.exit(1)\n")
+            self.assertEqual(compile_error["next_step"], "build-doctor")
+            only_tests = ("import sys\nprint('> Task :app:testDebugUnitTest FAILED')\n"
+                          "print('com.acme.ATest > works FAILED')\nsys.exit(1)\n")
+            _, summary = self.run_script(root, only_tests)
+            self.assertEqual(summary["next_step"], "test-analyst")
+            _, truncated = self.run_script(root, only_tests, "--max", "0")
+            self.assertEqual(truncated["next_step"], "test-analyst")
+            _, passed = self.run_script(root, "print('BUILD SUCCESSFUL')\n")
+            self.assertIsNone(passed["next_step"])
+            self.assertEqual(passed["schema_version"], 2)
+
+    def test_a_failing_test_does_not_hide_a_dependency_failure(self):
+        parsed = gradle_summary.parse("\n".join([
+            "> Task :app:checkDebugAarMetadata FAILED",
+            "> Task :feature:orders:testDebugUnitTest FAILED",
+            "com.acme.ATest > works FAILED",
+        ]), "/repo", 20)
+        self.assertEqual(gradle_summary.next_step("failed", parsed), "build-doctor")
+        tests_only = gradle_summary.parse("> Task :app:connectedDebugAndroidTest FAILED\ncom.acme.UiTest > shows FAILED",
+                                          "/repo", 20)
+        self.assertEqual(gradle_summary.next_step("failed", tests_only), "test-analyst")
+        no_task_line = gradle_summary.parse("com.acme.ATest > works FAILED", "/repo", 20)
+        self.assertEqual(gradle_summary.next_step("failed", no_task_line), "build-doctor")
+
+    def test_timeout_also_stops_the_processes_the_command_started(self):
+        with tempfile.TemporaryDirectory() as root:
+            marker = os.path.join(root, "worker-still-running")
+            body = ("import subprocess, sys, time\n"
+                    "subprocess.Popen([sys.executable, '-c', \"import sys, time; time.sleep(4); "
+                    "open(sys.argv[1], 'w').write('x')\", " + repr(marker) + "])\n"
+                    "print('started', flush=True)\ntime.sleep(60)\n")
+            result, summary = self.run_script(root, body, "--timeout", "0.03")
+            self.assertEqual(summary["status"], "timeout")
+            time.sleep(6)
+            self.assertFalse(os.path.exists(marker), "the worker kept running after the timeout")
+
+    @unittest.skipIf(os.name == "nt", "process groups and SIGTERM forwarding are POSIX only")
+    def test_stopping_the_script_stops_a_worker_that_ignores_sigterm(self):
+        import signal
+        with tempfile.TemporaryDirectory() as root:
+            marker = os.path.join(root, "worker-still-running")
+            script = os.path.join(root, "fake.py")
+            with open(script, "w", encoding="utf-8") as handle:
+                handle.write(
+                    "import subprocess, sys, time\n"
+                    "subprocess.Popen([sys.executable, '-c', \"import signal, sys, time; "
+                    "signal.signal(signal.SIGTERM, signal.SIG_IGN); time.sleep(10); open(sys.argv[1], 'w').write('x')\", "
+                    + repr(marker) + "])\n"
+                    "time.sleep(60)\n")
+            process = subprocess.Popen([sys.executable, str(HERE / "gradle_summary.py"), "--", sys.executable, script],
+                                       cwd=root, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            time.sleep(1.5)
+            process.send_signal(signal.SIGTERM)
+            process.communicate(timeout=30)
+            self.assertEqual(process.returncode, 128 + signal.SIGTERM)
+            time.sleep(5)
+            self.assertFalse(os.path.exists(marker), "a worker that ignores SIGTERM outlived the script")
+
+    def test_next_step_and_log_come_before_the_long_lists(self):
+        with tempfile.TemporaryDirectory() as root:
+            result, _ = self.run_script(root, "import sys\nprint('e: A.kt:3:1 Unresolved reference')\nsys.exit(1)\n")
+            self.assertLess(result.stdout.index('"next_step"'), result.stdout.index('"failures"'))
+            self.assertLess(result.stdout.index('"raw_log_path"'), result.stdout.index('"failures"'))
+
+    def test_connected_tasks_get_a_default_timeout(self):
+        self.assertEqual(gradle_summary.default_timeout(["./gradlew", ":app:connectedDebugAndroidTest"]), 9.0)
+        self.assertEqual(gradle_summary.default_timeout(["gradlew.bat", "connectedCheck", "--console=plain"]), 9.0)
+        self.assertIsNone(gradle_summary.default_timeout(["./gradlew", ":app:assembleDebug", "-Pconnected=true"]))
+
+    def test_wrapper_is_found_in_a_parent_folder_up_to_the_repository_root(self):
+        with tempfile.TemporaryDirectory() as root:
+            os.makedirs(os.path.join(root, ".git"))
+            sub = os.path.join(root, "feature", "orders")
+            os.makedirs(sub)
+            self.assertIsNone(gradle_summary.find_wrapper_root(sub))
+            for name in ("gradlew", "gradlew.bat"):
+                with open(os.path.join(root, name), "w", encoding="utf-8") as handle:
+                    handle.write("")
+            self.assertEqual(os.path.normcase(gradle_summary.find_wrapper_root(sub)), os.path.normcase(os.path.abspath(root)))
+
+    def test_runs_the_parent_wrapper_from_a_subfolder(self):
+        with tempfile.TemporaryDirectory() as root:
+            os.makedirs(os.path.join(root, ".git"))
+            sub = os.path.join(root, "feature", "orders")
+            os.makedirs(sub)
+            if os.name == "nt":
+                with open(os.path.join(root, "gradlew.bat"), "w", encoding="utf-8") as handle:
+                    handle.write("@echo off\r\necho ^> Task :app:assembleDebug FAILED\r\nexit /b 2\r\n")
+            else:
+                path = os.path.join(root, "gradlew")
+                with open(path, "w", encoding="utf-8") as handle:
+                    handle.write("#!/bin/sh\necho '> Task :app:assembleDebug FAILED'\nexit 2\n")
+                os.chmod(path, 0o755)
+            result = subprocess.run([sys.executable, str(HERE / "gradle_summary.py"), "--", "./gradlew", ":app:assembleDebug"],
+                                    cwd=sub, capture_output=True, text=True, timeout=120)
+            self.assertEqual(result.returncode, 2, result.stderr)
+            summary = json.loads(result.stdout)
+            self.assertEqual(summary["failed_tasks"], [":app:assembleDebug"])
+            self.assertEqual(os.path.normcase(summary["working_directory"]),
+                             os.path.normcase(os.path.abspath(root).replace("\\", "/")))
+            self.assertTrue(os.path.exists(os.path.join(root, summary["raw_log_path"])))
+
+    def test_an_explicit_wrapper_path_runs_as_given(self):
+        with tempfile.TemporaryDirectory() as root:
+            os.makedirs(os.path.join(root, ".git"))
+            for folder in (root, os.path.join(root, "android")):
+                os.makedirs(folder, exist_ok=True)
+                open(os.path.join(folder, gradle_summary.WRAPPER), "w").close()
+            android = os.path.join(root, "android")
+            wrapper, run_from = gradle_summary.resolve_wrapper("./android/gradlew", root)
+            self.assertEqual(os.path.normcase(wrapper), os.path.normcase(os.path.join(android, gradle_summary.WRAPPER)))
+            self.assertEqual(run_from, root)
+            sub = os.path.join(root, "feature")
+            os.makedirs(sub)
+            wrapper, run_from = gradle_summary.resolve_wrapper("./gradlew", sub)
+            self.assertEqual(os.path.normcase(run_from), os.path.normcase(os.path.abspath(root)))
+            wrapper, run_from = gradle_summary.resolve_wrapper("./missing/gradlew", sub)
+            self.assertEqual(run_from, sub)  # a wrong explicit path fails as before, with exit code 127
+
+
 class TestSummary(unittest.TestCase):
+    def test_failures_name_test_analyst(self):
+        with tempfile.TemporaryDirectory() as module:
+            results = os.path.join(module, "build", "test-results", "testDebugUnitTest")
+            os.makedirs(results)
+            with open(os.path.join(results, "TEST-x.xml"), "w", encoding="utf-8") as handle:
+                handle.write(JUNIT_XML)
+            result = subprocess.run([sys.executable, str(HERE / "test_summary.py"), "--module", module],
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 1)
+            summary = json.loads(result.stdout)
+            self.assertEqual(summary["next_step"], "test-analyst")
+            self.assertEqual(summary["schema_version"], 2)
+
     def test_reports_failures_with_own_frames(self):
         with tempfile.TemporaryDirectory() as module:
             results = os.path.join(module, "build", "test-results", "testDebugUnitTest")

@@ -1,5 +1,5 @@
 {
-  "description": "android-feature-kit: keeps each of the kit's agents inside its layer and stops their shell commands from writing files; lets one kit run work in a checkout at a time; and, when a project turns it on, blocks writing agents that the plan approved in Plan Mode does not list.",
+  "description": "android-feature-kit: keeps each of the kit's agents inside its layer and stops their shell commands from writing files; lets one kit run work in a checkout at a time; points Claude to build-doctor or test-analyst when a check fails; and, when a project turns it on, blocks writing agents that the plan approved in Plan Mode does not list.",
   "hooks": {
     "PreToolUse": [
       {
@@ -30,6 +30,28 @@
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/run-python.sh\" \"${CLAUDE_PLUGIN_ROOT}/hooks/plan_gate.py\"",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "^(Bash|PowerShell|Agent|Task)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/run-python.sh\" \"${CLAUDE_PLUGIN_ROOT}/hooks/failure_router.py\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "^(Bash|PowerShell)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/run-python.sh\" \"${CLAUDE_PLUGIN_ROOT}/hooks/failure_router.py\"",
             "timeout": 10
           }
         ]

@@ -1,6 +1,6 @@
 # Guía del Android Feature Kit
 
-Cómo instalar los agentes del kit en una app Android y cómo pedirles trabajo, con ejemplos. Vale para la versión 0.4.0 o superior del plugin.
+Cómo instalar los agentes del kit en una app Android y cómo pedirles trabajo, con ejemplos. Vale para la versión 0.4.1 o superior del plugin.
 
 La misma guía, como página con los tipos de agentes y el flujo dibujado, está en https://pfranccino.github.io/pfranccino-dev-skills/ (el archivo es [GUIA.html](GUIA.html)).
 
@@ -8,7 +8,7 @@ La idea es simple: le hablas a Claude como a un compañero de equipo. Claude dec
 
 ## Antes de empezar
 
-- Claude Code con el plugin `android-feature-kit` 0.4.0 o superior.
+- Claude Code con el plugin `android-feature-kit` 0.4.1 o superior.
 - Python 3.8 o superior en el PATH. Los hooks del kit lo usan; sin Python, dejan pasar todo.
 - La app en un repositorio git, con el Gradle wrapper (`gradlew`).
 - Opcional: Android CLI, para las skills oficiales de Google.
@@ -25,7 +25,7 @@ En Claude Code:
 /plugin install android-feature-kit@pfranccino-dev-skills
 ```
 
-Si ya lo tenías instalado, actualízalo. En `/plugin`, pestaña **Installed**, abre `android-feature-kit` y elige **Update now**; o en la terminal corre `claude plugin update android-feature-kit@pfranccino-dev-skills`. Después corre `/reload-plugins` o reinicia Claude Code. `/plugin marketplace update` solo refresca el catálogo y no actualiza el plugin instalado. En `/plugin` deberías ver la versión 0.4.0.
+Si ya lo tenías instalado, actualízalo. En `/plugin`, pestaña **Installed**, abre `android-feature-kit` y elige **Update now**; o en la terminal corre `claude plugin update android-feature-kit@pfranccino-dev-skills`. Después corre `/reload-plugins` o reinicia Claude Code. `/plugin marketplace update` solo refresca el catálogo y no actualiza el plugin instalado. En `/plugin` deberías ver la versión 0.4.1.
 
 ### 2. Agrega el ruteo al CLAUDE.md de la app (opcional)
 
@@ -35,9 +35,11 @@ Pega este párrafo al final del `CLAUDE.md` del repositorio de la app. Es el mis
 <!-- android-feature-kit:start -->
 ## Android feature work (android-feature-kit)
 
-Requests to build or change a feature (a new feature, screen, endpoint, entity or flow, a ticket to implement) go through the kit's `develop` skill. Questions about the code, failing builds or tests, reviews and architecture questions go through its `analyze` skill. A small change in one layer uses that layer's skill directly. Code changes, small ones included, start only after the user approves the plan in Plan Mode; analysis plans are approved in the conversation. The kit's limits and routine choices for this repository are in `.claude/android-feature-kit.md`.
+Requests to build or change a feature (a new feature, screen, endpoint, entity or flow, a ticket to implement) go through the kit's `develop` skill. Questions about the code, failing builds or tests, reviews and architecture questions go through its `analyze` skill. During kit work, a build, test or on-device check that fails or hangs goes first to the kit's `build-doctor` or `test-analyst`, before any diagnosis of your own. A small change in one layer uses that layer's skill directly. Code changes, small ones included, start only after the user approves the plan in Plan Mode; analysis plans are approved in the conversation. The kit's limits and routine choices for this repository are in `.claude/android-feature-kit.md`.
 <!-- android-feature-kit:end -->
 ```
+
+Si ya lo pegaste con una versión anterior, reemplázalo: la 0.4.1 agregó la frase sobre `build-doctor` y `test-analyst`.
 
 Claude carga el `CLAUDE.md` en todas las sesiones, por eso el párrafo es corto. Sin él, las skills igual se activan por su descripción, pero el párrafo hace más confiable que Claude elija la ruta correcta y que pida aprobación también en los cambios chicos.
 
@@ -73,7 +75,7 @@ El detalle de la configuración del revisor está en [`skills/develop/references
 
 ### 5. Copia los scripts de chequeo a la app (opcional)
 
-Los agentes compilan y corren tests a través de `gradle_summary.py` y `test_summary.py`, que resumen la salida de Gradle en un JSON corto. Si la app no los tiene, los agentes usan la copia del plugin. Tenerlos en la app sirve para que el equipo y la CI lean los mismos resúmenes.
+Los agentes compilan y corren tests a través de `gradle_summary.py` y `test_summary.py`, que resumen la salida de Gradle en un JSON corto. Si la app no los tiene, los agentes usan la copia del plugin. Tenerlos en la app sirve para que el equipo y la CI lean los mismos resúmenes. Si los copiaste con una versión anterior, cópialos de nuevo: los agentes usan primero la copia de la app, y las copias anteriores a la 0.4.1 no tienen `--timeout` ni `next_step`.
 
 Desde un clon de este repositorio (el script también instala las skills oficiales en la app, así que necesita Android CLI):
 
@@ -221,6 +223,16 @@ Si quieres que deje de preguntarte por algo, agrégalo a las elecciones rutinari
 **El plan gate bloqueó un agente.** El plan aprobado no tenía una línea `Agents:` con ese agente, o el agente iba a correr con otro modelo. Pídele a Claude que te muestre el plan de nuevo con el agente y su modelo entre paréntesis.
 
 **Los hooks no hacen nada.** Falta Python 3.8 o superior en el PATH. Sin Python, los hooks dejan pasar todo.
+
+**Un check falló y Claude no llamó a `build-doctor` ni a `test-analyst`.** Desde la 0.4.1, cuando un check falla o se agota, un hook le deja a Claude una nota con el agente que corresponde. En `develop`, la línea `Checks:` del plan ya lo aprueba y Claude lo llama sin preguntar; en `analyze`, te lo propone. El reporte final dice qué agente diagnosticó cada fallo y, si Claude lo investigó por su cuenta, por qué. Si no pasó así, pídeselo. Revisa también que la app tenga los scripts de chequeo de la 0.4.1 (paso 5).
+
+**Los tests conectados se cuelgan o el emulador aparece `offline`.** `gradle_summary.py` corta las tareas `connected*` a los 9 minutos, devuelve `status: "timeout"` y el hook manda el caso a `build-doctor`. Con un emulador API 37 hizo falta platform-tools 37 o más nuevo: con un `adb` más viejo el emulador quedaba `offline`. Actualízalo desde el SDK Manager de Android Studio o con `sdkmanager "platform-tools"`.
+
+**Un agente no encuentra `android`.** Instalaste Android CLI con Claude Code abierto. Reinicia Claude Code: la sesión y sus agentes leen el PATH al arrancar.
+
+**Un agente quedó trabajando en una subcarpeta.** Los agentes arrancan en el directorio de la conversación principal y no pueden hacer `cd`. Deja la conversación principal en la raíz del repositorio mientras trabajan. `gradle_summary.py` igual encuentra el `gradlew` de la raíz.
+
+**La guarda bloqueó un comando que solo nombraba `approved-plan.json`.** Es a propósito: la guarda bloquea cualquier comando de shell que nombre ese archivo, aunque sea como texto, para que nadie fabrique una aprobación. Para escribir un archivo que solo lo menciona, Claude usa la herramienta Write.
 
 **El revisor externo falla.** Claude te muestra el estado que devuelve `run_review.py`. Revisa que el comando de `.claude/android-feature-kit.json` exista en el PATH (por ejemplo `codex`) y mira el log en `build/android-feature-kit/review/`.
 

@@ -81,7 +81,7 @@ GIT_BLOCKED_SHORT = ("-o", "-c")
 ANDROID_SUBCOMMANDS = {"docs", "preview", "studio", "help", "--help", "--version"}
 PYTHON_PROGRAMS = {"python", "python3", "py", "python.exe", "python3.exe", "py.exe"}
 CHECK_SCRIPTS = ("gradle_summary.py", "test_summary.py")
-SCRIPT_OPTIONS = {"gradle_summary.py": {"--max"}, "test_summary.py": {"--module", "--results", "--max"}}
+SCRIPT_OPTIONS = {"gradle_summary.py": {"--max", "--timeout"}, "test_summary.py": {"--module", "--results", "--max"}}
 BLOCKED_FIND_FLAGS = {"-delete", "-exec", "-execdir", "-ok", "-okdir", "-fprint", "-fprint0", "-fprintf", "-fls"}
 SEPARATORS = {"|", "||", "&&", ";", "&", "\n", "(", ")", ";;"}
 NULL_TARGETS = {"/dev/null", "$null", "nul"}
@@ -435,7 +435,8 @@ def check_kit_records(event: dict, project_dir: str) -> str | None:
         command = str(tool_input.get("command", "")).lower()
     if target == normalize(APPROVED_PLAN_FILE.as_posix()) or APPROVED_PLAN_FILE.name in command:
         return (f"Only the plan gate records plan approvals in {APPROVED_PLAN_FILE.as_posix()}, when the user "
-                "approves a plan in Plan Mode. Read it with the Read tool if you need it.")
+                "approves a plan in Plan Mode. Read it with the Read tool if you need it. A shell command may not "
+                "name it at all; to write a file that only mentions it, use the Write tool.")
     if target == normalize(SCOPE_FILE.as_posix()) or SCOPE_FILE.name in command:
         owner = scope_owner(project_dir)
         if owner and owner != real_session_id(event.get("session_id")):

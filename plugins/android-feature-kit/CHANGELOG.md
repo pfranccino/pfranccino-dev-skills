@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.4.1 (unreleased)
+
+Failing checks reach the diagnosis agents. In a real `develop` run, Claude diagnosed a dependency failure and a hung emulator in the main conversation instead of calling `build-doctor`, and a later review round raised again a finding the user had accepted in round 1.
+
+- New hook, `hooks/failure_router.py`. When `gradle_summary.py` or `test_summary.py` reports a failure or a timeout in the main session, or a writing agent returns STATUS failed or blocked with a failing check, it adds a note for Claude that names `build-doctor` or `test-analyst` and the log. The note launches nothing: in `develop` the plan's Checks line approves those agents, and in `analyze` Claude proposes them. It also listens to `PostToolUseFailure`, because a shell command that exits with an error is a failed tool call in Claude Code and never reaches `PostToolUse`. Checks run in the background are not covered.
+- `gradle_summary.py`: `--timeout <minutes>` stops the command and its child processes, and the summary says `status: "timeout"` (exit code 124). Connected tasks stop after 9 minutes by default, before a 10-minute shell call is cut; `--timeout 0` turns the limit off. On Linux and macOS the command runs in its own process group, so the timeout, or stopping the script, also stops what the command started. `next_step` and `raw_log_path` come near the top of the summary, so they survive when Claude Code cuts long output. A bare `./gradlew` that the working directory lacks is found in a parent folder, up to the repository root; an explicit wrapper path such as `./android/gradlew` runs as given, and on Windows it now runs the `gradlew.bat` at that path instead of the one in the working directory. Both summaries gain `next_step`: `test-analyst` when only test tasks failed, `build-doctor` for any other failure or a timeout, `null` when nothing failed. Their `schema_version` is 2. Apps that copied the scripts into `tools/agent-checks/` need to copy them again (`install-pack` with `--with-repo-tools`).
+- `develop`: section 4 names environment failures (an emulator or device offline, an install or a connected test that hangs, a missing SDK or JDK) and says the main session sends a failure to its diagnosis agent before investigating it. The final report lists each failure, the agent that diagnosed it, and why none did when Claude diagnosed it alone.
+- `analyze` proposes the diagnosis agent before investigating a failed check.
+- The `CLAUDE.md` block has one more sentence: a check that fails or hangs goes first to `build-doctor` or `test-analyst`. Apps that pasted the block need to replace it.
+- The descriptions of `build-doctor` and `test-analyst` say to use them proactively in `develop` and to propose them in `analyze`, and `build-doctor` covers device and adb problems during connected tests. Every agent that runs Gradle gives the shell call its longest timeout (600000 ms), and the writing agents copy `status`, `next_step` and `raw_log_path` into CHECKS for a failure they could not fix.
+- Review rounds carry the findings the user accepted or deferred in every earlier round, so the reviewer does not raise them again as new. This covers `android-reviewer` and the external reviewer's prompt in `references/external-review.md`, whose later rounds also bring the decisions list up to date.
+- Layer guard: the agents may pass `--timeout` to `gradle_summary.py`. A shell command that names `approved-plan.json` is still blocked, even when it only cites the file as text; the message now says to write such a file with the Write tool. A full path to `android.exe` was already accepted.
+- README and GUIA: the agents start in the main session's working directory and cannot `cd`; restart Claude Code after installing Android CLI; connected tests on an API 37 emulator needed platform-tools 37 or newer.
+- `install-pack` passes `claude-code` to Android CLI instead of `claude`, which Android CLI 1.1 rejects as an invalid agent. The `-Agents` / `--agents` value for Claude is now `claude-code`. The fix was merged after 0.4.0, and installed plugins receive it with this version.
+
 ## 0.4.0 (unreleased)
 
 How the kit is triggered and who decides changed. The main conversation coordinates the agents, and nothing writes code before you approve the plan.
@@ -14,7 +29,6 @@ How the kit is triggered and who decides changed. The main conversation coordina
 - One kit run per checkout: `scope.json` now carries the session id. While it belongs to another session, no writing agent can start and no session can replace the file; you release a stale one by deleting it. The kit's agents never write in `build/android-feature-kit/`. `develop` deletes its own scope when it reports.
 - `GUIA.md`: a step-by-step guide in Spanish to install the kit in an app and use it, with examples. `GUIA.html` is the same guide as a page, with the agent types and the flow, published at https://pfranccino.github.io/pfranccino-dev-skills/ by the repository's `.github/workflows/pages.yml` on every change to it in `main`.
 - The plugin is for Claude Code only: the Codex plugin manifest, the Codex marketplace file and the skills' `agents/openai.yaml` were removed.
-- `install-pack` passes `claude-code` to Android CLI instead of `claude`, which Android CLI 1.1 rejects as an invalid agent. The `-Agents` / `--agents` value for Claude is now `claude-code`.
 
 ## 0.3.0 (unreleased)
 
