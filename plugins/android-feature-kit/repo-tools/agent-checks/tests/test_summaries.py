@@ -1,4 +1,6 @@
 """Tests for the check scripts. Run from repo-tools/agent-checks: python -m unittest discover tests"""
+import contextlib
+import io
 import json
 import os
 import pathlib
@@ -264,6 +266,120 @@ class GradleTimeoutAndNextStep(unittest.TestCase):
             self.assertEqual(os.path.normcase(run_from), os.path.normcase(os.path.abspath(root)))
             wrapper, run_from = gradle_summary.resolve_wrapper("./missing/gradlew", sub)
             self.assertEqual(run_from, sub)  # a wrong explicit path fails as before, with exit code 127
+
+
+def fake_adb(devices: str, version="Version 37.0.0-1", boot="1", sdk="37", devices_code=0):
+    def call(_adb, *args, serial=None):
+        if args == ("version",):
+            return 0, f"Android Debug Bridge version 1.0.41\n{version}\n"
+        if args == ("devices",):
+            return devices_code, "List of devices attached\n" + devices
+        if args[-1] == "sys.boot_completed":
+            return 0, boot + "\n"
+        if args[-1] == "ro.build.version.sdk":
+            return 0, sdk + "\n"
+        raise AssertionError(args)
+    return call
+
+
+class DeviceCheck(unittest.TestCase):
+    def check(self, devices, **fake):
+        return gradle_summary.check_devices("/repo", call=fake_adb(devices, **fake), adb="/sdk/platform-tools/adb")
+
+    def test_a_booted_device_passes(self):
+        result = self.check("emulator-5554\tdevice\n")
+        self.assertEqual(result["result"], "passed")
+        self.assertEqual(result["devices"][0]["sdk"], 37)
+        self.assertEqual(result["adb_version"], "37.0.0-1")
+        self.assertEqual(result["warnings"], [])
+
+    def test_no_device_offline_unauthorized_or_booting_fails(self):
+        self.assertIn("no device or emulator", self.check("")["problem"])
+        self.assertIn("emulator-5554 is offline", self.check("emulator-5554\toffline\n")["problem"])
+        self.assertIn("is unauthorized", self.check("R5CT\tunauthorized\n")["problem"])
+        self.assertIn("still booting", self.check("emulator-5554\tdevice\n", boot="")["problem"])
+
+    def test_one_ready_device_is_enough(self):
+        result = self.check("emulator-5554\toffline\nemulator-5556\tdevice\n")
+        self.assertEqual(result["result"], "passed")
+
+    def test_android_serial_picks_the_device(self):
+        os.environ["ANDROID_SERIAL"] = "emulator-5556"
+        try:
+            result = self.check("emulator-5554\tdevice\nemulator-5556\toffline\n")
+        finally:
+            del os.environ["ANDROID_SERIAL"]
+        self.assertEqual(result["result"], "failed")
+        self.assertIn("emulator-5556 is offline", result["problem"])
+
+    def test_an_older_adb_than_the_device_warns(self):
+        result = self.check("emulator-5554\tdevice\n", version="Version 34.0.5-10900879")
+        self.assertEqual(result["result"], "passed")
+        self.assertIn("older than the device's API 37", result["warnings"][0])
+
+    def test_adb_that_does_not_answer_fails(self):
+        result = self.check("", devices_code=None)
+        self.assertEqual(result["result"], "failed")
+
+    def test_without_adb_the_check_is_skipped(self):
+        original = gradle_summary.find_adb
+        gradle_summary.find_adb = lambda _root: None
+        try:
+            self.assertEqual(gradle_summary.check_devices("/repo")["result"], "skipped")
+        finally:
+            gradle_summary.find_adb = original
+
+    def test_sdk_dir_from_local_properties(self):
+        with tempfile.TemporaryDirectory() as root:
+            with open(os.path.join(root, "local.properties"), "w", encoding="utf-8") as handle:
+                handle.write("sdk.dir=C\\:\\\\Users\\\\x\\\\Android\\\\Sdk\n")
+            self.assertEqual(gradle_summary.sdk_dirs(root)[0], "C:\\Users\\x\\Android\\Sdk")
+
+
+class DeviceCheckInTheRun(unittest.TestCase):
+    def run_main(self, root, *options, check=None):
+        script = os.path.join(root, "fake.py")
+        with open(script, "w", encoding="utf-8") as handle:
+            handle.write("print('BUILD SUCCESSFUL')\n")
+        original = gradle_summary.check_devices
+        gradle_summary.check_devices = lambda _root: check
+        output = io.StringIO()
+        cwd = os.getcwd()
+        os.chdir(root)
+        try:
+            with contextlib.redirect_stdout(output):
+                code = gradle_summary.main([*options, "--", sys.executable, script, ":app:connectedDebugAndroidTest"])
+        finally:
+            os.chdir(cwd)
+            gradle_summary.check_devices = original
+        return code, json.loads(output.getvalue())
+
+    def test_no_ready_device_stops_before_gradle(self):
+        failed = {"result": "failed", "problem": "no device or emulator is connected", "adb_version": "34.0.5",
+                  "devices": [], "warnings": [], "output": []}
+        with tempfile.TemporaryDirectory() as root:
+            code, summary = self.run_main(root, check=failed)
+            self.assertEqual(code, 125)
+            self.assertEqual(summary["status"], "device_unavailable")
+            self.assertEqual(summary["next_step"], "build-doctor")
+            self.assertIn("adb kill-server", summary["note"])
+            self.assertIn("user decides", summary["note"])
+            self.assertTrue(os.path.exists(os.path.join(root, summary["raw_log_path"])))
+
+    def test_a_ready_device_runs_gradle_and_keeps_the_check(self):
+        passed = {"result": "passed", "problem": None, "devices": [{"serial": "emulator-5554", "state": "device"}]}
+        with tempfile.TemporaryDirectory() as root:
+            code, summary = self.run_main(root, check=passed)
+            self.assertEqual(code, 0)
+            self.assertEqual(summary["status"], "passed")
+            self.assertEqual(summary["device_check"]["result"], "passed")
+
+    def test_no_device_check_skips_it(self):
+        failed = {"result": "failed", "problem": "no device", "devices": [], "warnings": [], "output": []}
+        with tempfile.TemporaryDirectory() as root:
+            code, summary = self.run_main(root, "--no-device-check", check=failed)
+            self.assertEqual(code, 0)
+            self.assertIsNone(summary["device_check"])
 
 
 class TestSummary(unittest.TestCase):

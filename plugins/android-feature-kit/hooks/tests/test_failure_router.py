@@ -49,6 +49,11 @@ class ShellChecks(unittest.TestCase):
         self.assertIn("build/agent-checks/gradle-1.log", message)
         self.assertIn("propose it to the user", message)
 
+    def test_unavailable_device_names_build_doctor(self):
+        message = failed_shell(CONNECTED, gradle_summary("device_unavailable"))
+        self.assertIn("No device was ready", message)
+        self.assertIn("build-doctor", message)
+
     def test_timeout_names_build_doctor(self):
         message = failed_shell(CONNECTED, gradle_summary("timeout"))
         self.assertIn("timed out", message)

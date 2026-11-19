@@ -107,7 +107,7 @@ Every agent builds and tests its module. When you run a check yourself (an appro
 
 The plan's Checks line approves the diagnosis agents. When a failure remains that its owner could not fix, or a check of yours fails or hangs, send it to them before you investigate it yourself:
 
-- compile, KSP, resource, dependency or Gradle configuration errors, and environment failures (an emulator or device that goes offline, an install or a connected test that hangs or times out, a missing SDK or JDK): `build-doctor` with the check summary;
+- compile, KSP, resource, dependency or Gradle configuration errors, and environment failures (an emulator or device that is offline or missing, which the check script reports as `device_unavailable`; an install or a connected test that hangs or times out; a missing SDK or JDK): `build-doctor` with the check summary;
 - failing tests: `test-analyst` with the module path;
 - the summary's `next_step` names the agent, and after a failing check the kit's hook adds a note that names it too;
 - then send the proposed fix to the owner named in the diagnosis, when it stays inside the approved plan. A fix that changes the plan (a dependency or version, a contract, files outside the plan) is asked first.
